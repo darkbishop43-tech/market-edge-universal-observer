@@ -22,3 +22,5 @@ The Cloudflare design intentionally uses one Worker and one scheduled observatio
 OBSERVE → PREDICT → RESOLVE → CALIBRATE → PAPER TEST → VALIDATE → only then consider REAL eligibility.
 
 A score or prediction is never execution authority.
+
+<!-- cloudflare-trigger: git-access-restored-2026-09-21 -->
