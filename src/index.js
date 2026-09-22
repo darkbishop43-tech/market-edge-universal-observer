@@ -1,5 +1,7 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
 const VERSION = "0.1.0";
+import { runObservationCycle } from "./observer/run.js";
+
 const MODE = "OBSERVATION_ONLY";
 
 const ENGINES = {
@@ -55,17 +57,7 @@ small{color:#aab4d0}
 }
 
 async function observe(env) {
-  // V0 intentionally does not write evidence until isolated persistence exists.
-  // Public market discovery + Weather evidence wiring is the next bounded build.
-  return {
-    ok: true,
-    mode: MODE,
-    observedAt: new Date().toISOString(),
-    discovery: "PENDING_PUBLIC_DATA_WIRING",
-    routed: 0,
-    persisted: 0,
-    tradingCapability: false,
-  };
+  return runObservationCycle();
 }
 
 export default {
