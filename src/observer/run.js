@@ -15,7 +15,7 @@ export async function runObservationCycle() {
     const classification=classifyMarket(market);
     counts[classification.domain]=(counts[classification.domain] || 0)+1;
     if (classification.domain === "weather") {
-      weatherObservations.push(observeWeatherMarket(market,classification,observedAt));
+      weatherObservations.push(await observeWeatherMarket(market,classification,observedAt));
     }
   }
   return {
