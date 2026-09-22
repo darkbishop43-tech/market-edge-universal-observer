@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.4.1";
+const VERSION = "0.4.2";
 import { runObservationCycle } from "./observer/run.js";
 
 const MODE = "OBSERVATION_ONLY";
@@ -7,7 +7,7 @@ const MODE = "OBSERVATION_ONLY";
 const ENGINES = {
   weather: {
     id: "weather-v0",
-    status: "READY_FOR_DATA_WIRING",
+    status: "ACTIVE_RESEARCH",
     executionEligible: false,
   },
   economics: {
