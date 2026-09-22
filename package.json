@@ -1,0 +1,14 @@
+{
+  "name": "market-edge-universal-observer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Observation-only Market Edge universal observer and domain evidence engines.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "node --check src/index.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
