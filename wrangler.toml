@@ -1,0 +1,11 @@
+name = "market-edge-universal-observer"
+main = "src/index.js"
+compatibility_date = "2026-09-21"
+
+# V0 is intentionally observation-only.
+# No Baseline/Payne/NFE bindings and no trading credentials belong here.
+#
+# Persistence bindings will be added only after the isolated Cloudflare
+# resources are created and verified.
+#
+# A single Cron trigger will be enabled during Cloudflare activation.
