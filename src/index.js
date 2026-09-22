@@ -51,13 +51,14 @@ small{color:#aab4d0}
 <div class="card"><strong>V0 control plane</strong><p>Discovery → classify → route → timestamp → preserve → reconcile → compare.</p></div>
 <div class="card"><strong>Protected separation</strong><p class="lock">Baseline Real untouched · Payne untouched · NFE Reasoning untouched</p></div>
 <div class="card"><table><thead><tr><th>Engine</th><th>Status</th><th>Execution</th></tr></thead><tbody>${engineRows}</tbody></table></div>
-<div class="card"><strong>Evidence ledger</strong><p>Not connected yet. D1 is the intended historical ledger after an isolated database is created and verified.</p></div>
+<div class="card"><strong>Evidence ledger</strong><p>D1-ready · activates only after an isolated database is bound.</p></div>
+<div class="card"><strong>V0 review endpoints</strong><p><code>/health</code> — isolation/config proof<br><code>/observe</code> — live observation cycle proof</p></div>
 <small>Version ${VERSION}</small>
 </main></body></html>`, { headers: { "content-type": "text/html; charset=utf-8" } });
 }
 
 async function observe(env) {
-  return runObservationCycle();
+  return runObservationCycle(env);
 }
 
 export default {
