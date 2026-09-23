@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.5.26";
+const VERSION = "0.6.0";
 import { runObservationCycle } from "./observer/run.js";
 import { getProviderCache, putProviderCache } from "./ledger/d1.js";
 
@@ -56,6 +56,28 @@ async function weatherSeriesDrilldown(env,ticker){
   return {...live,providerState:"PROVIDER_UNAVAILABLE_NO_CACHE",cacheAgeSeconds:null};
 }
 
+async function economicsCatalog(env) {
+  const cacheKey="kalshi:economics-series-catalog";
+  const cached=await getProviderCache(env?.DB,cacheKey,{maxAgeSeconds:900});
+  if(cached.fresh&&cached.payload)return {...cached.payload,providerState:"D1_FRESH_CACHE",cacheAgeSeconds:cached.ageSeconds};
+  const m=await import("./observer/kalshi.js");
+  const live=await m.discoverEconomicsSeriesCatalog();
+  if(live.ok){
+    await putProviderCache(env?.DB,cacheKey,"KALSHI",live,new Date().toISOString());
+    return {...live,providerState:"LIVE_VERIFIED",cacheAgeSeconds:0};
+  }
+  if(cached.payload)return {...cached.payload,ok:true,providerState:"D1_STALE_FALLBACK",providerBoundary:live.error||"PROVIDER_UNAVAILABLE",providerHttpStatus:live.httpStatus??null,cacheAgeSeconds:cached.ageSeconds};
+  return {...live,providerState:"PROVIDER_UNAVAILABLE_NO_CACHE",cacheAgeSeconds:null};
+}
+
+async function economicsDashboard(env) {
+  const d=await economicsCatalog(env);
+  const families=(d.economicsSeries||[]).slice(0,12);
+  const shown=families.slice(0,6);
+  const rows=shown.map(x=>'<tr><td>'+escHtml(x.title||x.ticker)+'</td><td><code>'+escHtml(x.ticker)+'</code></td><td>'+escHtml(x.category||"—")+'</td><td>NO</td></tr>').join("");
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Economics V0 — ${APP}</title><style>*{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#07111f;color:#eef6ff;margin:0}main{max-width:1100px;margin:auto;padding:24px}.top{display:flex;justify-content:space-between;gap:12px}.tag,.badge{border:1px solid #29496d;border-radius:999px;padding:6px 10px}.badge{display:inline-block;background:#123a2a;color:#85efb5;border:0;font-weight:700}.card{background:#0d1b2e;border:1px solid #213754;border-radius:14px;padding:16px;margin-top:14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.big{font-size:26px;font-weight:800}.muted{color:#91a8c4}.ok{color:#85efb5}.warn{color:#ffd166}table{width:100%;border-collapse:collapse}td,th{padding:9px;border-bottom:1px solid #213754;text-align:left;font-size:14px}th{color:#9fc7f4}code{color:#a5d6ff}</style></head><body><main><div class="top"><h1>📊 ECONOMICS V0 — UNIVERSAL OBSERVER</h1><span class="tag">v${VERSION}</span></div><p class="muted">Bounded economic-family discovery · research only</p><p><span class="badge">OBSERVATION ONLY · ZERO ORDER CAPABILITY</span></p><div class="grid"><div class="card"><div class="muted">Economics families found</div><div class="big">${shown.length}</div></div><div class="card"><div class="muted">Provider state</div><div class="big">${escHtml(d.providerState||"UNKNOWN")}</div></div><div class="card"><div class="muted">Execution</div><div class="big">NO</div></div></div><div class="card"><strong>Economics Contract Families</strong><p class="muted">Initial governed catalog: CPI/inflation, unemployment/jobless, Federal Reserve/rates, GDP and payroll/jobs families. No orders, bankroll, or trading credentials.</p><table><thead><tr><th>Family</th><th>Ticker</th><th>Category</th><th>Execution</th></tr></thead><tbody>${rows||'<tr><td colspan="4">No verified Economics series available yet.</td></tr>'}</tbody></table></div><div class="card"><strong>Research gate</strong><p>Catalog first → select 1–2 representative families → actual contracts → longitudinal observation → resolution evidence.</p><p class="muted">Weather is held separately. Baseline Real remains untouched.</p></div></main></body></html>`,{headers:{"content-type":"text/html; charset=utf-8"}});
+}
+
 async function dashboard(env) {
   const d=await weatherCatalog(env);
   const seedSeries=(d.weatherSeries||[]).slice(0,12);
@@ -99,6 +121,8 @@ export default {
       return json({ok:true,app:APP,version:VERSION,mode:MODE,tradingCapability:false,engines:ENGINES,d1});
     }
     if (url.pathname === "/weather-catalog") return json(await weatherCatalog(env));
+    if (url.pathname === "/economics-catalog") return json(await economicsCatalog(env));
+    if (url.pathname === "/economics-dashboard") return economicsDashboard(env);
     if (url.pathname === "/weather-dashboard") return dashboard(env);
     if (url.pathname === "/weather-series") {
       const ticker=String(url.searchParams.get("ticker")||"").trim().toUpperCase();
