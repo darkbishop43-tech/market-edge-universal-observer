@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.5.14";
+const VERSION = "0.5.15";
 import { runObservationCycle } from "./observer/run.js";
 import { getProviderCache, putProviderCache } from "./ledger/d1.js";
 
@@ -29,10 +29,23 @@ async function weatherCatalog(env) {
   return {...live,providerState:"PROVIDER_UNAVAILABLE_NO_CACHE",cacheAgeSeconds:null};
 }
 
+async function seededWeatherContracts(env){
+  const cacheKey="kalshi:seeded-weather-contracts";
+  const cached=await getProviderCache(env?.DB,cacheKey,{maxAgeSeconds:300});
+  if(cached.fresh&&cached.payload)return {...cached.payload,providerState:"D1_FRESH_CACHE",cacheAgeSeconds:cached.ageSeconds};
+  const m=await import("./observer/kalshi.js");
+  const live=await m.discoverOpenMarkets({limit:2});
+  if(live.ok){const payload={ok:true,markets:(live.markets||[]).slice(0,2),observedAt:new Date().toISOString()};await putProviderCache(env?.DB,cacheKey,"KALSHI",payload,payload.observedAt);return {...payload,providerState:"LIVE_VERIFIED",cacheAgeSeconds:0};}
+  if(cached.payload)return {...cached.payload,ok:true,providerState:"D1_STALE_FALLBACK",cacheAgeSeconds:cached.ageSeconds,providerBoundary:live.error||"PROVIDER_UNAVAILABLE"};
+  return {ok:false,markets:[],providerState:"PROVIDER_UNAVAILABLE_NO_CACHE",providerBoundary:live.error||"PROVIDER_UNAVAILABLE"};
+}
+
 async function dashboard(env) {
   const d=await weatherCatalog(env);
+  const seedContracts=await seededWeatherContracts(env);
   const seedSeries=(d.weatherSeries||[]).slice(0,2);
   const rows=seedSeries.map(x=>'<tr><td><a class="seriesLink" data-disabled="/weather-series?ticker='+encodeURIComponent(x.ticker)+'">'+escHtml(x.title||x.ticker)+'</a></td><td><code>'+escHtml(x.ticker)+'</code></td><td><span class="ok">NWS-SUITABLE SEED</span></td><td>NO</td></tr>').join("");
+  const contractRows=(seedContracts.markets||[]).map(x=>'<tr><td>'+escHtml(x.title||x.ticker)+'</td><td><code>'+escHtml(x.ticker)+'</code></td><td>'+escHtml(x.status||"—")+'</td><td>'+escHtml(x.yes_bid_dollars??"—")+' / '+escHtml(x.yes_ask_dollars??"—")+'</td><td>'+escHtml(x.no_bid_dollars??"—")+' / '+escHtml(x.no_ask_dollars??"—")+'</td><td>'+escHtml(x.close_time||"—")+'</td></tr>').join("");
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${APP}</title><style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#07111f;color:#eef6ff;margin:0}main{max-width:1180px;margin:auto;padding:24px}
@@ -51,6 +64,7 @@ h1{margin:0}.sub,.muted,small{color:#91a8c4}.badge{display:inline-block;padding:
 <div class="card"><strong>Engine registry</strong><table><tr><th>Engine</th><th>State</th><th>Execution</th></tr><tr><td>Weather V0</td><td class="good">ACTIVE RESEARCH</td><td>NO</td></tr><tr><td>Economics V0</td><td class="warn">RESERVED</td><td>NO</td></tr></table></div>
 <div class="card"><strong>🌦️ Weather Contract Catalog</strong><p class="muted">Seed V0 displays only two representative Weather families from the cached Kalshi catalog. Additional families are intentionally deferred while evidence accumulates.</p>
 <table><thead><tr><th>Weather contract family</th><th>Ticker</th><th>Research state</th><th>Execution</th></tr></thead><tbody>${rows||'<tr><td colspan="4">No Weather series returned.</td></tr>'}</tbody></table></div>
+<div class="card"><strong>🎯 Actual Seed Contracts</strong><p class="muted">Up to two actual open Kalshi contracts from the governed Weather seed path. Read-only evidence; zero order capability. Source: ${escHtml(seedContracts.providerState||"UNKNOWN")}.</p><table><thead><tr><th>Contract</th><th>Ticker</th><th>Status</th><th>YES bid / ask</th><th>NO bid / ask</th><th>Close</th></tr></thead><tbody>${contractRows||'<tr><td colspan="6">No verified seed contracts available yet.</td></tr>'}</tbody></table></div>
 <div class="card"><strong>🌱 Seed Observatory</strong><p class="muted">V0 intentionally observes only 1–2 representative contracts per domain at a time. Expansion is evidence-earned, not volume-driven.</p><table><tr><th>Rule</th><th>V0 state</th></tr><tr><td>Weather observations per cycle</td><td class="good">2 MAX</td></tr><tr><td>Minimum refresh boundary</td><td class="good">5 MINUTES</td></tr><tr><td>Selection purpose</td><td>Research suitability · not highest-score chasing</td></tr><tr><td>Expansion</td><td>Only after longitudinal + resolution evidence</td></tr></table></div>
 <div class="card"><strong>🧪 Longitudinal Research Layer</strong><p class="muted">D1 now preserves per-contract signal history for prospective evaluation. These features are research-only and cannot alter Market Edge execution.</p><table><tr><th>Feature</th><th>State</th></tr><tr><td>Trajectory / prior score / delta</td><td class="good">COLLECTING</td></tr><tr><td>Recent peak + distance from peak</td><td class="good">COLLECTING</td></tr><tr><td>Persistence above domain threshold</td><td class="good">COLLECTING</td></tr><tr><td>Signal age</td><td class="good">COLLECTING</td></tr><tr><td>Source freshness</td><td class="good">COLLECTING</td></tr><tr><td>Objective outcome / resolution</td><td class="warn">SCHEMA READY · RECONCILIATION NEXT</td></tr></table></div>
 <div class="card"><strong>Protected separation</strong><p>🔒 Baseline Real untouched &nbsp; 🔒 Payne untouched &nbsp; 🔒 NFE Reasoning untouched</p><p class="muted">No bankroll · no order endpoint · no trading credentials.</p></div>
