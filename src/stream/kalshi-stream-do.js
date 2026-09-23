@@ -8,6 +8,7 @@ const WS_SIGN_PATH = "/trade-api/ws/v2";
 const SUBSCRIBE_ID = 1;
 const MAX_FAST_RECONNECTS = 6;
 const HOLD_MS = 15 * 60 * 1000;
+const HEALTH_WAKE_MS = 10 * 60 * 1000;
 
 function iso(){ return new Date().toISOString(); }
 function safeJson(text){ try { return JSON.parse(text); } catch { return null; } }
@@ -199,7 +200,10 @@ export class KalshiStreamObserver {
       });
       return;
     }
-    if(this.ws && this.ws.readyState === WebSocket.OPEN && ["SUBSCRIBING","LIVE"].includes(this.runtimeState.state)) return;
+    if(this.ws && this.ws.readyState === WebSocket.OPEN && ["SUBSCRIBING","LIVE"].includes(this.runtimeState.state)){
+      await this.ctx.storage.setAlarm(Date.now()+HEALTH_WAKE_MS);
+      return;
+    }
     if(["CONNECTING","AUTHENTICATING"].includes(this.runtimeState.state) && !fromAlarm) return;
     await this.connect();
   }
@@ -245,13 +249,18 @@ export class KalshiStreamObserver {
         nextRetryAt:null
       });
       ws.send(JSON.stringify({id:SUBSCRIBE_ID,cmd:"subscribe",params:{channels:[CHANNEL]}}));
+      await this.ctx.storage.setAlarm(Date.now()+HEALTH_WAKE_MS);
     }catch(error){
       await this.scheduleReconnect(error);
     }
   }
 
   async onMessage(event){
-    const rawText = typeof event.data === "string" ? event.data : await event.data.text();
+    let rawText;
+    if(typeof event.data === "string") rawText=event.data;
+    else if(event.data instanceof ArrayBuffer) rawText=new TextDecoder().decode(event.data);
+    else if(event.data && typeof event.data.text === "function") rawText=await event.data.text();
+    else rawText=String(event.data ?? "");
     const data = safeJson(rawText);
     if(!data){
       await this.setState(this.runtimeState.state,{lastError:"MALFORMED_PROVIDER_MESSAGE"});
@@ -338,7 +347,7 @@ export class KalshiStreamObserver {
   }
 
   async runFixture(body={}){
-    const fixture = body?.fixture === "SIMULATED_TEST_FIXTURE" ? body : {
+    const fixture = body?.fixture === "SIMULATED_TEST_FIXTURE" && body?.message ? body : {
       fixture:"SIMULATED_TEST_FIXTURE",
       message:{
         type:"ticker",
