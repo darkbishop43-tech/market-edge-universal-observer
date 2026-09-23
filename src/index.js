@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.6.1";
+const VERSION = "0.6.2";
 import { runObservationCycle } from "./observer/run.js";
 import { getProviderCache, putProviderCache } from "./ledger/d1.js";
 
@@ -122,7 +122,7 @@ export default {
     }
     if (url.pathname === "/weather-catalog") return json(await weatherCatalog(env));
     if (url.pathname === "/economics-catalog") return json(await economicsCatalog(env));
-    if (url.pathname === "/economics-dashboard") return economicsDashboard(env);
+    if (url.pathname === "/economics-dashboard" || url.pathname === "/economics") return economicsDashboard(env);
     if (url.pathname === "/weather-dashboard") return dashboard(env);
     if (url.pathname === "/weather-series") {
       const ticker=String(url.searchParams.get("ticker")||"").trim().toUpperCase();
