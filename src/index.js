@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.5.9";
+const VERSION = "0.5.10";
 import { runObservationCycle } from "./observer/run.js";
 import { getProviderCache, putProviderCache } from "./ledger/d1.js";
 
@@ -71,10 +71,21 @@ export default {
     if (url.pathname === "/weather-series") {
       const ticker=String(url.searchParams.get("ticker")||"").toUpperCase();
       const m=await import("./observer/kalshi.js");
-      const d=await m.discoverSeriesMarkets(ticker);
+      const cacheKey="kalshi:weather-series-markets:"+ticker;
+      const cached=await getProviderCache(env?.DB,cacheKey,{maxAgeSeconds:300});
+      let d;
+      if(cached.fresh && cached.payload) d={...cached.payload,providerState:"D1_FRESH_CACHE",cacheAgeSeconds:cached.ageSeconds};
+      else {
+        const live=await m.discoverSeriesMarkets(ticker);
+        if(live.ok){
+          await putProviderCache(env?.DB,cacheKey,"KALSHI",live,new Date().toISOString());
+          d={...live,providerState:"LIVE_VERIFIED",cacheAgeSeconds:0};
+        } else if(cached.payload) d={...cached.payload,ok:true,providerState:"D1_STALE_FALLBACK",providerBoundary:live.error||"PROVIDER_UNAVAILABLE",providerHttpStatus:live.httpStatus??null,cacheAgeSeconds:cached.ageSeconds};
+        else d={...live,providerState:"PROVIDER_UNAVAILABLE_NO_CACHE",cacheAgeSeconds:null};
+      }
       const rows=(d.markets||[]).map(x=>'<tr><td>'+escHtml(x.title||x.ticker)+'</td><td><code>'+escHtml(x.ticker)+'</code></td><td>'+escHtml(x.status||"—")+'</td><td>'+escHtml(x.yesBid??"—")+' / '+escHtml(x.yesAsk??"—")+'</td><td>'+escHtml(x.noBid??"—")+' / '+escHtml(x.noAsk??"—")+'</td><td>'+escHtml(x.closeTime||"—")+'</td></tr>').join("");
       const body=d.ok
-        ? '<p><span class="badge">VERIFIED PROVIDER CONTRACT RESPONSE · OBSERVATION ONLY</span></p><p><b>'+escHtml((d.markets||[]).length)+'</b> contracts returned for <code>'+escHtml(ticker)+'</code>.</p><table><thead><tr><th>Contract</th><th>Ticker</th><th>Status</th><th>YES bid / ask</th><th>NO bid / ask</th><th>Close</th></tr></thead><tbody>'+(rows||'<tr><td colspan="6">Provider returned zero contracts for this family.</td></tr>')+'</tbody></table>'
+        ? '<p><span class="badge">VERIFIED CONTRACT EVIDENCE · OBSERVATION ONLY</span></p><p>Source state: <b>'+escHtml(d.providerState||"LIVE_VERIFIED")+'</b>'+(d.cacheAgeSeconds!=null?' · cache age '+escHtml(Math.round(d.cacheAgeSeconds))+'s':'')+'</p><p><b>'+escHtml((d.markets||[]).length)+'</b> contracts returned for <code>'+escHtml(ticker)+'</code>.</p><table><thead><tr><th>Contract</th><th>Ticker</th><th>Status</th><th>YES bid / ask</th><th>NO bid / ask</th><th>Close</th></tr></thead><tbody>'+(rows||'<tr><td colspan="6">Provider returned zero contracts for this family.</td></tr>')+'</tbody></table>'
         : '<div class="boundary"><b>🟡 CONTRACT LOOKUP NOT VERIFIED</b><br>Kalshi returned '+escHtml(d.httpStatus||d.error||"provider failure")+(d.httpStatus===429?'. Provider rate limit remains the current boundary. No contract availability is inferred.':'. No contract availability is inferred.')+'</div>';
       return new Response('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Weather contracts · '+escHtml(ticker)+'</title><style>*{box-sizing:border-box}body{font-family:system-ui;background:#07111f;color:#eef6ff;margin:0}main{max-width:1180px;margin:auto;padding:24px}a{color:#7eb5ff}.badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#123a2a;color:#85efb5;font-weight:700}.boundary{padding:16px;border:1px solid #6b5a2c;background:#2b2412;border-radius:10px;color:#ffd166}table{width:100%;border-collapse:collapse;margin-top:18px;background:#0d1b2e}td,th{padding:9px;border-bottom:1px solid #213754;text-align:left;font-size:14px}th{color:#9fc7f4}code{color:#a5d6ff}</style></head><body><main><p><a href="/">← Universal Observer</a></p><h1>🌦️ '+escHtml(ticker)+' — Actual Contracts</h1><p>Read-only Kalshi family drill-down. ZERO ORDER CAPABILITY.</p>'+body+'<p><small>Universal Observer v'+VERSION+' · Baseline Real untouched.</small></p></main></body></html>',{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store"}});
     }
