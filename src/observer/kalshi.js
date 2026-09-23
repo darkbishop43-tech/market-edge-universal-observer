@@ -59,17 +59,18 @@ export async function discoverOpenMarkets({limit=500}={}) {
   const markets=[]; const attempts=[];
   for(const series of selected){
     if(markets.length>=limit) break;
-    const mr=await getJson("/markets",{series_ticker:series.ticker,limit:Math.min(20,Math.max(2,limit*10)),mve_filter:"exclude"});
-    if(mr.ok && Array.isArray(mr.data?.markets)){
+    const mr=await getJson("/events",{series_ticker:series.ticker,status:"open",with_nested_markets:"true",limit:2});
+    const nested=mr.ok&&Array.isArray(mr.data?.events)?mr.data.events.flatMap(e=>Array.isArray(e?.markets)?e.markets:[]):[];
+    if(nested.length){
       const now=Date.now();
-      const usable=mr.data.markets.filter(m=>{
+      const usable=nested.filter(m=>{
         const status=String(m?.status||"").toLowerCase();
         const close=Date.parse(m?.close_time||"");
         return !["closed","settled","finalized"].includes(status) && (!Number.isFinite(close)||close>now);
       });
       markets.push(...usable.slice(0,Math.max(0,limit-markets.length)));
     }
-    attempts.push({seriesTicker:series.ticker,httpStatus:mr.httpStatus,latencyMs:mr.latencyMs,retryAfter:mr.retryAfter,error:mr.error});
+    attempts.push({seriesTicker:series.ticker,path:"events+nested_markets",httpStatus:mr.httpStatus,latencyMs:mr.latencyMs,retryAfter:mr.retryAfter,error:mr.error,nestedMarkets:nested.length});
     if(mr.httpStatus===429) break;
   }
   if(!markets.length) return {ok:false,source:"KALSHI_WEATHER_SERIES",variant:"series_first",httpStatus:attempts.find(a=>a.httpStatus)?.httpStatus||200,latencyMs:sr.latencyMs+attempts.reduce((n,a)=>n+(a.latencyMs||0),0),markets:[],cursor:null,error:attempts.some(a=>a.httpStatus===429)?"KALSHI_WEATHER_MARKETS_RATE_LIMITED":"NO_OPEN_WEATHER_MARKETS",seriesExamined:allSeries.length,seriesSelected:selected.length,weatherSeries:selected.map(s=>({ticker:s.ticker,title:s.title||null})),attempts};
