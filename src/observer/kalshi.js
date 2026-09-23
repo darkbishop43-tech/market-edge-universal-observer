@@ -1,5 +1,5 @@
 const KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2";
-const WEATHER_TERMS = ["weather","temperature","rain","snow","hurricane","wind","heat","degrees"];
+const WEATHER_TERMS = ["weather","temperature","rain","snow","snowfall","hurricane","wind","heat","degrees"];
 
 async function getJson(path, params={}) {
   const url=new URL(KALSHI_BASE+path);
@@ -24,7 +24,7 @@ export async function discoverOpenMarkets({limit=500}={}) {
   const sr=await getJson("/series");
   if(!sr.ok) return {ok:false,source:"KALSHI_WEATHER_SERIES",variant:"series_first",httpStatus:sr.httpStatus,latencyMs:sr.latencyMs,retryAfter:sr.retryAfter,markets:[],cursor:null,error:sr.httpStatus===429?"KALSHI_SERIES_RATE_LIMITED":"KALSHI_SERIES_DISCOVERY_FAILED",attempts:[sr]};
   const allSeries=Array.isArray(sr.data?.series)?sr.data.series:[];
-  const selected=allSeries.filter(weatherSeries).slice(0,12);
+  const selected=allSeries.filter(weatherSeries).filter(s=>!/(tsunami|natural disaster)/i.test([s?.ticker,s?.title,s?.category].filter(Boolean).join(" "))).slice(0,24);
   if(!selected.length) return {ok:false,source:"KALSHI_WEATHER_SERIES",variant:"series_first",httpStatus:200,latencyMs:sr.latencyMs,markets:[],cursor:null,error:"NO_WEATHER_SERIES",seriesExamined:allSeries.length,seriesSelected:0};
 
   const markets=[]; const attempts=[];
