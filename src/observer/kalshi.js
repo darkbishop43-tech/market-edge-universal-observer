@@ -144,3 +144,23 @@ export async function discoverSeriesMarkets(seriesTicker) {
 
   return {ok:true,seriesTicker:ticker,httpStatus:200,source:"KALSHI_SERIES_EVENTS",variant:"open_events_nested_markets",markets};
 }
+
+
+const ECON_PATTERNS = [
+  /\bcpi\b/i,/\binflation\b/i,/\bunemployment\b/i,/\bjobless\b/i,
+  /\bfederal reserve\b/i,/\bfed funds?\b/i,/\binterest rates?\b/i,
+  /\bgdp\b/i,/\bpayrolls?\b/i,/\bjobs report\b/i
+];
+
+function economicsSeries(series){
+  const text=seriesText(series);
+  return ECON_PATTERNS.some(pattern=>pattern.test(text));
+}
+
+export async function discoverEconomicsSeriesCatalog() {
+  const sr=await getJson("/series");
+  if(!sr.ok) return {ok:false,httpStatus:sr.httpStatus,error:sr.httpStatus===429?"KALSHI_SERIES_RATE_LIMITED":"KALSHI_SERIES_DISCOVERY_FAILED",seriesExamined:0,economicsSeries:[]};
+  const allSeries=Array.isArray(sr.data?.series)?sr.data.series:[];
+  const selected=allSeries.filter(economicsSeries).slice(0,50);
+  return {ok:true,source:"KALSHI_SERIES_CATALOG",seriesExamined:allSeries.length,economicsSeries:selected.map(s=>({ticker:s.ticker,title:s.title||null,category:s.category||null}))};
+}
