@@ -1,6 +1,7 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.5.8";
+const VERSION = "0.5.9";
 import { runObservationCycle } from "./observer/run.js";
+import { getProviderCache, putProviderCache } from "./ledger/d1.js";
 
 const MODE = "OBSERVATION_ONLY";
 
@@ -14,9 +15,22 @@ function json(data, status = 200) {
 }
 function escHtml(v){return String(v??"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));}
 
-async function dashboard() {
+async function weatherCatalog(env) {
+  const cacheKey="kalshi:weather-series-catalog";
+  const cached=await getProviderCache(env?.DB,cacheKey,{maxAgeSeconds:300});
+  if(cached.fresh && cached.payload) return {...cached.payload,providerState:"D1_FRESH_CACHE",cacheAgeSeconds:cached.ageSeconds};
   const m=await import("./observer/kalshi.js");
-  const d=await m.discoverWeatherSeriesCatalog();
+  const live=await m.discoverWeatherSeriesCatalog();
+  if(live.ok){
+    await putProviderCache(env?.DB,cacheKey,"KALSHI",live,new Date().toISOString());
+    return {...live,providerState:"LIVE_VERIFIED",cacheAgeSeconds:0};
+  }
+  if(cached.payload) return {...cached.payload,ok:true,providerState:"D1_STALE_FALLBACK",providerBoundary:live.error||"PROVIDER_UNAVAILABLE",providerHttpStatus:live.httpStatus??null,cacheAgeSeconds:cached.ageSeconds};
+  return {...live,providerState:"PROVIDER_UNAVAILABLE_NO_CACHE",cacheAgeSeconds:null};
+}
+
+async function dashboard(env) {
+  const d=await weatherCatalog(env);
   const rows=(d.weatherSeries||[]).map(x=>'<tr><td><a class="seriesLink" href="/weather-series?ticker='+encodeURIComponent(x.ticker)+'">'+escHtml(x.title||x.ticker)+'</a></td><td><code>'+escHtml(x.ticker)+'</code></td><td><span class="ok">CATALOGED</span></td><td>NO</td></tr>').join("");
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${APP}</title><style>
@@ -31,7 +45,7 @@ h1{margin:0}.sub,.muted,small{color:#91a8c4}.badge{display:inline-block;padding:
 <div class="card"><div class="muted">Kalshi series examined</div><div class="big">${escHtml(d.seriesExamined||0)}</div></div>
 <div class="card"><div class="muted">Weather routed</div><div class="big">${escHtml((d.weatherSeries||[]).length)}</div></div>
 <div class="card"><div class="muted">Predictions</div><div class="big">—</div></div>
-<div class="card"><div class="muted">Ledger</div><div class="big">D1 READY</div></div>
+<div class="card"><div class="muted">Ledger</div><div class="big">D1 READY</div></div><div class="card"><div class="muted">Provider state</div><div class="big">${escHtml(d.providerState||"UNKNOWN")}</div><small>${d.cacheAgeSeconds!=null?"cache age "+escHtml(Math.round(d.cacheAgeSeconds))+"s":"no cached age"}</small></div>
 </div>
 <div class="card"><strong>Engine registry</strong><table><tr><th>Engine</th><th>State</th><th>Execution</th></tr><tr><td>Weather V0</td><td class="good">ACTIVE RESEARCH</td><td>NO</td></tr><tr><td>Economics V0</td><td class="warn">RESERVED</td><td>NO</td></tr></table></div>
 <div class="card"><strong>🌦️ Weather Contract Catalog</strong><p class="muted">Verified Weather contract families from the Kalshi series catalog. Click a family to request its actual Kalshi contracts. Rate-limited responses are shown explicitly and never represented as verified contracts.</p>
@@ -46,14 +60,14 @@ async function observe(env) { return runObservationCycle(env); }
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === "/") return dashboard();
+    if (url.pathname === "/") return dashboard(env);
     if (url.pathname === "/health") {
       let d1={bound:Boolean(env?.DB),schemaReady:false,status:env?.DB?"BOUND_NOT_CHECKED":"D1_NOT_BOUND"};
-      if(env?.DB){try{const row=await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('observation_cycles','observations','resolutions')").first();const n=Number(row?.n||0);d1={bound:true,schemaReady:n===3,status:n===3?"D1_SCHEMA_READY":"D1_BOUND_SCHEMA_PENDING",expectedTables:3,presentTables:n};}catch(error){d1={bound:true,schemaReady:false,status:"D1_HEALTH_READ_FAILED",error:String(error?.message||error).slice(0,120)};}}
+      if(env?.DB){try{const row=await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('observation_cycles','observations','resolutions','signal_state','provider_cache')").first();const n=Number(row?.n||0);d1={bound:true,schemaReady:n===5,status:n===5?"D1_SCHEMA_READY":"D1_BOUND_SCHEMA_PENDING",expectedTables:5,presentTables:n};}catch(error){d1={bound:true,schemaReady:false,status:"D1_HEALTH_READ_FAILED",error:String(error?.message||error).slice(0,120)};}}
       return json({ok:true,app:APP,version:VERSION,mode:MODE,tradingCapability:false,engines:ENGINES,d1});
     }
-    if (url.pathname === "/weather-catalog") {const m=await import("./observer/kalshi.js");return json(await m.discoverWeatherSeriesCatalog());}
-    if (url.pathname === "/weather-dashboard") return dashboard();
+    if (url.pathname === "/weather-catalog") return json(await weatherCatalog(env));
+    if (url.pathname === "/weather-dashboard") return dashboard(env);
     if (url.pathname === "/weather-series") {
       const ticker=String(url.searchParams.get("ticker")||"").toUpperCase();
       const m=await import("./observer/kalshi.js");
