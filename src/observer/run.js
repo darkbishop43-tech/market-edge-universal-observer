@@ -12,8 +12,8 @@ export async function runObservationCycle(env={}) {
   const observedAt=new Date().toISOString();
   // Configurable governor: safe V0 defaults, expandable later without architecture changes.
   const totalActiveCeiling=intSetting(env,"OBSERVER_ACTIVE_CEILING",100,1,5000);
-  const weatherPerCycle=intSetting(env,"WEATHER_PER_CYCLE",5,1,totalActiveCeiling);
-  const discoveryLimit=intSetting(env,"DISCOVERY_MARKET_LIMIT",Math.min(25,totalActiveCeiling),1,5000);
+  const weatherPerCycle=intSetting(env,"WEATHER_PER_CYCLE",2,1,totalActiveCeiling);
+  const discoveryLimit=intSetting(env,"DISCOVERY_MARKET_LIMIT",Math.min(10,totalActiveCeiling),1,5000);
   const minRefreshSeconds=intSetting(env,"MIN_REFRESH_SECONDS",300,60,86400);
 
   const discovery=await discoverOpenMarkets({limit:discoveryLimit});
