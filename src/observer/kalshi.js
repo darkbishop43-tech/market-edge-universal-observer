@@ -38,7 +38,7 @@ async function getJson(path, params={}) {
   }catch(error){return {ok:false,httpStatus:null,latencyMs:Date.now()-started,retryAfter:null,data:null,error:String(error?.message||error),url:url.toString()};}
 }
 
-function seriesText(series){return [series?.ticker,series?.title,series?.category,series?.tags].flat().filter(Boolean).join(" ");}
+function seriesText(series){return [series?.ticker,series?.title].flat().filter(Boolean).join(" ");}
 function weatherSeries(series){
   const text=seriesText(series);
   return WEATHER_PATTERNS.some(pattern=>pattern.test(text)) && !NON_WEATHER_PATTERNS.some(pattern=>pattern.test(text));
@@ -71,4 +71,14 @@ export async function discoverWeatherSeriesCatalog() {
   const allSeries=Array.isArray(sr.data?.series)?sr.data.series:[];
   const selected=selectWeatherSeries(allSeries,50);
   return {ok:true,source:"KALSHI_SERIES_CATALOG",seriesExamined:allSeries.length,weatherSeries:selected.map(s=>({ticker:s.ticker,title:s.title||null,category:s.category||null}))};
+}
+
+
+export async function discoverSeriesMarkets(seriesTicker) {
+  const ticker=String(seriesTicker||"").trim().toUpperCase();
+  if(!/^[A-Z0-9_-]{2,40}$/.test(ticker)) return {ok:false,error:"INVALID_SERIES_TICKER",markets:[]};
+  const mr=await getJson("/markets",{series_ticker:ticker,limit:100,mve_filter:"exclude"});
+  if(!mr.ok) return {ok:false,seriesTicker:ticker,httpStatus:mr.httpStatus,retryAfter:mr.retryAfter,error:mr.httpStatus===429?"KALSHI_SERIES_MARKETS_RATE_LIMITED":"KALSHI_SERIES_MARKETS_FAILED",markets:[]};
+  const markets=Array.isArray(mr.data?.markets)?mr.data.markets:[];
+  return {ok:true,seriesTicker:ticker,httpStatus:mr.httpStatus,markets:markets.map(m=>({ticker:m.ticker||null,title:m.title||null,subtitle:m.subtitle||null,status:m.status||null,openTime:m.open_time||null,closeTime:m.close_time||null,yesAsk:m.yes_ask??null,yesBid:m.yes_bid??null,noAsk:m.no_ask??null,noBid:m.no_bid??null,rulesPrimary:m.rules_primary||null}))};
 }
