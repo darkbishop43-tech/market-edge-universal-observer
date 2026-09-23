@@ -49,11 +49,11 @@ async function dashboard(env) {
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${APP}</title><style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#07111f;color:#eef6ff;margin:0}main{max-width:1180px;margin:auto;padding:24px}
-h1{margin:0}.sub,.muted,small{color:#91a8c4}.badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#123a2a;color:#85efb5;font-weight:700}
+h1{margin:0}.topline{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.versionTag{white-space:nowrap;border:1px solid #29496d;background:#0d1b2e;border-radius:999px;padding:6px 10px;color:#a5d6ff;font-size:12px;font-weight:800;letter-spacing:.04em}.sub,.muted,small{color:#91a8c4}.badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#123a2a;color:#85efb5;font-weight:700}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0}.card{background:#0d1b2e;border:1px solid #213754;border-radius:14px;padding:16px;margin-top:12px}
 .big{font-size:28px;font-weight:800}.warn{color:#ffd166}.good,.ok{color:#85efb5}table{width:100%;border-collapse:collapse;margin-top:10px}td,th{padding:9px;border-bottom:1px solid #213754;text-align:left;font-size:14px}th{color:#9fc7f4}code{color:#a5d6ff}.seriesLink{color:#7eb5ff;text-decoration:none;font-weight:700}.seriesLink:hover{text-decoration:underline}.boundary{padding:12px;border:1px solid #6b5a2c;background:#2b2412;border-radius:10px;color:#ffd166}
 </style></head><body><main>
-<h1>🔭 MARKET EDGE — UNIVERSAL OBSERVER</h1><p class="sub">Neutral discovery · routing · evidence · reconciliation control plane</p>
+<div class="topline"><h1>🔭 MARKET EDGE — UNIVERSAL OBSERVER</h1><span class="versionTag">v${VERSION}</span></div><p class="sub">Neutral discovery · routing · evidence · reconciliation control plane</p>
 <p><span class="badge">OBSERVATION ONLY · ZERO ORDER CAPABILITY</span></p>
 <div class="grid">
 <div class="card"><div class="muted">Seed candidates displayed</div><div class="big">${escHtml(seedSeries.length)}</div></div>
