@@ -8,7 +8,9 @@ export async function ensureLedgerSchema(db) {
     `CREATE TABLE IF NOT EXISTS resolutions (observation_id TEXT PRIMARY KEY, resolved_at TEXT NOT NULL, result TEXT, settlement_value REAL, hypothetical_pnl REAL, estimated_fees REAL, calibration_error REAL, liquidity_note TEXT, reconciliation_json TEXT)`,
     `CREATE TABLE IF NOT EXISTS signal_state (domain TEXT NOT NULL, ticker TEXT NOT NULL, first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL, sample_count INTEGER NOT NULL DEFAULT 0, first_score REAL, last_score REAL, recent_peak REAL, recent_trough REAL, threshold_first_at TEXT, threshold_continuous_since TEXT, last_source_at TEXT, updated_at TEXT NOT NULL, PRIMARY KEY(domain,ticker))`,
     `CREATE INDEX IF NOT EXISTS idx_signal_state_updated ON signal_state(domain,updated_at)`,
-    `CREATE TABLE IF NOT EXISTS provider_cache (cache_key TEXT PRIMARY KEY, provider TEXT NOT NULL, payload_json TEXT NOT NULL, fetched_at TEXT NOT NULL, updated_at TEXT NOT NULL)`
+    `CREATE TABLE IF NOT EXISTS provider_cache (cache_key TEXT PRIMARY KEY, provider TEXT NOT NULL, payload_json TEXT NOT NULL, fetched_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS stream_evidence (evidence_id TEXT PRIMARY KEY, evidence_class TEXT NOT NULL, provider TEXT NOT NULL, channel TEXT NOT NULL, market_ticker TEXT, provider_source_time TEXT, ingested_at TEXT NOT NULL, message_type TEXT NOT NULL, connection_id TEXT, subscription_id TEXT, market_state_json TEXT NOT NULL, raw_source_json TEXT NOT NULL, created_at TEXT NOT NULL)`,
+    `CREATE INDEX IF NOT EXISTS idx_stream_evidence_real_time ON stream_evidence(evidence_class,channel,ingested_at)`
   ];
   await db.batch(statements.map(sql=>db.prepare(sql)));
   return {ok:true,status:"D1_SCHEMA_READY"};
@@ -85,4 +87,60 @@ export async function putProviderCache(db,cacheKey,provider,payload,fetchedAt=ne
     ON CONFLICT(cache_key) DO UPDATE SET provider=excluded.provider,payload_json=excluded.payload_json,fetched_at=excluded.fetched_at,updated_at=excluded.updated_at`)
     .bind(cacheKey,provider,JSON.stringify(payload),fetchedAt,new Date().toISOString()).run();
   return {ok:true,status:"CACHE_UPDATED",fetchedAt};
+}
+
+
+export async function persistStreamEvidence(db,evidence) {
+  if(!db) return {ok:false,status:"D1_NOT_BOUND"};
+  await ensureLedgerSchema(db);
+  const evidenceClass=String(evidence?.evidenceClass||"").trim();
+  if(!["REAL_PROVIDER","SIMULATED_TEST_FIXTURE"].includes(evidenceClass)) return {ok:false,status:"INVALID_EVIDENCE_CLASS"};
+  const ingestedAt=evidence?.ingestedAt||new Date().toISOString();
+  const ticker=evidence?.marketTicker||null;
+  const id=[evidenceClass,evidence?.provider||"UNKNOWN",evidence?.channel||"UNKNOWN",ticker||"NO_TICKER",ingestedAt,crypto.randomUUID()].join(":");
+  await db.prepare(`INSERT INTO stream_evidence
+    (evidence_id,evidence_class,provider,channel,market_ticker,provider_source_time,ingested_at,message_type,connection_id,subscription_id,market_state_json,raw_source_json,created_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .bind(
+      id,
+      evidenceClass,
+      evidence?.provider||"UNKNOWN",
+      evidence?.channel||"UNKNOWN",
+      ticker,
+      evidence?.providerSourceTime||null,
+      ingestedAt,
+      evidence?.messageType||"unknown",
+      evidence?.connectionId||null,
+      evidence?.subscriptionId!=null?String(evidence.subscriptionId):null,
+      JSON.stringify(evidence?.marketState||{}),
+      JSON.stringify(evidence?.rawSource||{}),
+      new Date().toISOString()
+    ).run();
+  return {ok:true,status:"PERSISTED",evidenceId:id,evidenceClass};
+}
+
+export async function getLastStreamEvidence(db,{evidenceClass="REAL_PROVIDER",channel="ticker"}={}) {
+  if(!db) return {ok:false,status:"D1_NOT_BOUND",evidence:null};
+  await ensureLedgerSchema(db);
+  const row=await db.prepare(`SELECT evidence_id,evidence_class,provider,channel,market_ticker,provider_source_time,ingested_at,message_type,connection_id,subscription_id,market_state_json,raw_source_json
+    FROM stream_evidence WHERE evidence_class=? AND channel=? ORDER BY ingested_at DESC LIMIT 1`)
+    .bind(evidenceClass,channel).first();
+  if(!row) return {ok:true,status:"NO_EVIDENCE",evidence:null};
+  let marketState={}; let rawSource={};
+  try{marketState=JSON.parse(row.market_state_json||"{}");}catch{}
+  try{rawSource=JSON.parse(row.raw_source_json||"{}");}catch{}
+  return {ok:true,status:"FOUND",evidence:{
+    evidenceId:row.evidence_id,
+    evidenceClass:row.evidence_class,
+    provider:row.provider,
+    channel:row.channel,
+    marketTicker:row.market_ticker,
+    providerSourceTime:row.provider_source_time,
+    ingestedAt:row.ingested_at,
+    messageType:row.message_type,
+    connectionId:row.connection_id,
+    subscriptionId:row.subscription_id,
+    marketState,
+    rawSource
+  }};
 }
