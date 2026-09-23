@@ -1,59 +1,46 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.5.5";
+const VERSION = "0.5.6";
 import { runObservationCycle } from "./observer/run.js";
 
 const MODE = "OBSERVATION_ONLY";
 
 const ENGINES = {
-  weather: {
-    id: "weather-v0",
-    status: "ACTIVE_RESEARCH",
-    executionEligible: false,
-  },
-  economics: {
-    id: "economics-v0",
-    status: "RESERVED",
-    executionEligible: false,
-  },
+  weather: { id: "weather-v0", status: "ACTIVE_RESEARCH", executionEligible: false },
+  economics: { id: "economics-v0", status: "RESERVED", executionEligible: false },
 };
 
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data, null, 2), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-      "access-control-allow-origin": "*",
-    },
-  });
+  return new Response(JSON.stringify(data, null, 2), {status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","access-control-allow-origin":"*"}});
 }
+function escHtml(v){return String(v??"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));}
 
-function dashboard() {
+async function dashboard() {
+  const m=await import("./observer/kalshi.js");
+  const d=await m.discoverWeatherSeriesCatalog();
+  const rows=(d.weatherSeries||[]).map(x=>'<tr><td>'+escHtml(x.title||x.ticker)+'</td><td><code>'+escHtml(x.ticker)+'</code></td><td><span class="ok">CATALOGED</span></td><td>NO</td></tr>').join("");
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${APP}</title><style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#07111f;color:#eef6ff;margin:0}main{max-width:1180px;margin:auto;padding:24px}
-h1{margin:0}.sub{color:#91a8c4}.badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#123a2a;color:#85efb5;font-weight:700}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0}.card{background:#0d1b2e;border:1px solid #213754;border-radius:14px;padding:16px}
-.big{font-size:28px;font-weight:800}.muted{color:#91a8c4}.warn{color:#ffd166}.good{color:#85efb5}table{width:100%;border-collapse:collapse}td,th{padding:9px;border-bottom:1px solid #213754;text-align:left;font-size:14px}
-button{background:#1f6feb;color:white;border:0;border-radius:9px;padding:10px 14px;font-weight:700;cursor:pointer}code{color:#a5d6ff}
-.weatherRun{display:inline-block;background:#1677ff;color:#fff;text-decoration:none;font-weight:700;padding:10px 14px;border-radius:8px;margin:8px 0}.weatherRun:hover{filter:brightness(1.08)}</style></head><body><main>
+h1{margin:0}.sub,.muted,small{color:#91a8c4}.badge{display:inline-block;padding:6px 10px;border-radius:999px;background:#123a2a;color:#85efb5;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0}.card{background:#0d1b2e;border:1px solid #213754;border-radius:14px;padding:16px;margin-top:12px}
+.big{font-size:28px;font-weight:800}.warn{color:#ffd166}.good,.ok{color:#85efb5}table{width:100%;border-collapse:collapse;margin-top:10px}td,th{padding:9px;border-bottom:1px solid #213754;text-align:left;font-size:14px}th{color:#9fc7f4}code{color:#a5d6ff}
+</style></head><body><main>
 <h1>🔭 MARKET EDGE — UNIVERSAL OBSERVER</h1><p class="sub">Neutral discovery · routing · evidence · reconciliation control plane</p>
 <p><span class="badge">OBSERVATION ONLY · ZERO ORDER CAPABILITY</span></p>
 <div class="grid">
-<div class="card"><div class="muted">Discovered</div><div class="big" id="discovered">—</div></div>
-<div class="card"><div class="muted">Weather routed</div><div class="big" id="weather">—</div></div>
-<div class="card"><div class="muted">Predictions</div><div class="big" id="predictions">—</div></div>
-<div class="card"><div class="muted">Ledger</div><div class="big" id="ledger">D1 READY</div></div>
+<div class="card"><div class="muted">Kalshi series examined</div><div class="big">${escHtml(d.seriesExamined||0)}</div></div>
+<div class="card"><div class="muted">Weather routed</div><div class="big">${escHtml((d.weatherSeries||[]).length)}</div></div>
+<div class="card"><div class="muted">Predictions</div><div class="big">—</div></div>
+<div class="card"><div class="muted">Ledger</div><div class="big">D1 READY</div></div>
 </div>
 <div class="card"><strong>Engine registry</strong><table><tr><th>Engine</th><th>State</th><th>Execution</th></tr><tr><td>Weather V0</td><td class="good">ACTIVE RESEARCH</td><td>NO</td></tr><tr><td>Economics V0</td><td class="warn">RESERVED</td><td>NO</td></tr></table></div>
-<div class="card"><strong>🌦️ Weather Research</strong><p class="muted">Kalshi Weather series catalog · observation-only evidence research.</p><p class="muted">Live individual market lookup is provider-rate-limited and remains outside this pause checkpoint.</p><a id="run" class="weatherRun" href="/weather-dashboard">View Weather contracts</a></div>
+<div class="card"><strong>🌦️ Weather Contract Catalog</strong><p class="muted">Verified Weather contract families from the Kalshi series catalog. Individual live market details remain provider-rate-limited and are not represented as available until verified.</p>
+<table><thead><tr><th>Weather contract family</th><th>Ticker</th><th>Research state</th><th>Execution</th></tr></thead><tbody>${rows||'<tr><td colspan="4">No Weather series returned.</td></tr>'}</tbody></table></div>
 <div class="card"><strong>Protected separation</strong><p>🔒 Baseline Real untouched &nbsp; 🔒 Payne untouched &nbsp; 🔒 NFE Reasoning untouched</p><p class="muted">No bankroll · no order endpoint · no trading credentials.</p></div>
-<small class="muted">Version ${VERSION} · <code>/health</code> · <code>/weather-dashboard</code> · <code>/observe</code></small></main></body></html>`,{headers:{"content-type":"text/html; charset=utf-8"}});
+<small>Version ${VERSION} · <code>/health</code> · <code>/weather-dashboard</code> · <code>/observe</code></small></main></body></html>`,{headers:{"content-type":"text/html; charset=utf-8"}});
 }
 
-async function observe(env) {
-  return runObservationCycle(env);
-}
+async function observe(env) { return runObservationCycle(env); }
 
 export default {
   async fetch(request, env) {
@@ -61,31 +48,13 @@ export default {
     if (url.pathname === "/") return dashboard();
     if (url.pathname === "/health") {
       let d1={bound:Boolean(env?.DB),schemaReady:false,status:env?.DB?"BOUND_NOT_CHECKED":"D1_NOT_BOUND"};
-      if(env?.DB){
-        try{
-          const row=await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('observation_cycles','observations','resolutions')").first();
-          const n=Number(row?.n||0);
-          d1={bound:true,schemaReady:n===3,status:n===3?"D1_SCHEMA_READY":"D1_BOUND_SCHEMA_PENDING",expectedTables:3,presentTables:n};
-        }catch(error){d1={bound:true,schemaReady:false,status:"D1_HEALTH_READ_FAILED",error:String(error?.message||error).slice(0,120)};}
-      }
+      if(env?.DB){try{const row=await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('observation_cycles','observations','resolutions')").first();const n=Number(row?.n||0);d1={bound:true,schemaReady:n===3,status:n===3?"D1_SCHEMA_READY":"D1_BOUND_SCHEMA_PENDING",expectedTables:3,presentTables:n};}catch(error){d1={bound:true,schemaReady:false,status:"D1_HEALTH_READ_FAILED",error:String(error?.message||error).slice(0,120)};}}
       return json({ok:true,app:APP,version:VERSION,mode:MODE,tradingCapability:false,engines:ENGINES,d1});
     }
-    if (url.pathname === "/weather-catalog") {
-      const m=await import("./observer/kalshi.js");
-      return json(await m.discoverWeatherSeriesCatalog());
-    }
-    if (url.pathname === "/weather-dashboard") {
-      const m=await import("./observer/kalshi.js");
-      const d=await m.discoverWeatherSeriesCatalog();
-      const escHtml=v=>String(v??"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
-      const rows=(d.weatherSeries||[]).map(x=>'<tr><td>'+escHtml(x.title||x.ticker)+'</td><td><code>'+escHtml(x.ticker)+'</code></td><td><span class="ok">CATALOGED</span></td><td>NO</td></tr>').join("");
-      return new Response('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Weather Contract Catalog</title><style>body{font-family:system-ui;background:#071321;color:#eef6ff;max-width:1100px;margin:24px auto;padding:16px}a{color:#7eb5ff}.pill{display:inline-block;padding:6px 10px;border-radius:20px;background:#123d2b;color:#7df0ad;font-weight:700}table{width:100%;border-collapse:collapse;margin-top:18px;background:#0d1e31}th,td{text-align:left;padding:11px;border-bottom:1px solid #28415c}th{color:#9fc7f4}.ok{color:#75efad}small{color:#91afd0}code{color:#d8eaff}</style></head><body><a href="/">← Universal Observer</a><h1>🌦️ Weather Contract Catalog</h1><p class="pill">OBSERVATION ONLY · ZERO ORDER CAPABILITY</p><p><b>'+escHtml(d.seriesExamined||0)+'</b> Kalshi series examined · <b>'+escHtml((d.weatherSeries||[]).length)+'</b> Weather research series displayed</p><p><small>Verified Weather contract families from the Kalshi series catalog. Individual live market details remain provider-rate-limited and are not represented as available until verified.</small></p><table><thead><tr><th>Weather contract family</th><th>Ticker</th><th>Research state</th><th>Execution</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4">No Weather series returned.</td></tr>')+'</tbody></table><p><small>Universal Observer v'+VERSION+' · Baseline Real untouched.</small></p></body></html>',{headers:{"content-type":"text/html; charset=utf-8"}});
-    }
+    if (url.pathname === "/weather-catalog") {const m=await import("./observer/kalshi.js");return json(await m.discoverWeatherSeriesCatalog());}
+    if (url.pathname === "/weather-dashboard") return dashboard();
     if (url.pathname === "/observe") return json(await observe(env));
     return json({ ok: false, error: "NOT_FOUND" }, 404);
   },
-
-  async scheduled(controller, env, ctx) {
-    ctx.waitUntil(observe(env));
-  },
+  async scheduled(controller, env, ctx) { ctx.waitUntil(observe(env)); },
 };
