@@ -3,11 +3,11 @@ import { classifyMarket } from "./classify.js";
 import { observeWeatherMarket } from "../engines/weather-v0.js";
 import { persistCycle } from "../ledger/d1.js";
 
-const MAX_WEATHER_PER_CYCLE=24;
+const MAX_WEATHER_PER_CYCLE=8;
 
 export async function runObservationCycle(env={}) {
   const observedAt=new Date().toISOString();
-  const discovery=await discoverOpenMarkets({limit:1000});
+  const discovery=await discoverOpenMarkets({limit:500});
   if(!discovery.ok) return {ok:false,observedAt,tradingCapability:false,discovery,counts:{discovered:0,weather:0,economics:0,unclassified:0},weatherObservations:[],persistence:{ok:false,status:"SKIPPED_DISCOVERY_FAILED"}};
 
   const counts={discovered:discovery.markets.length,weather:0,economics:0,unclassified:0};
