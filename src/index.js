@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.6.6";
+const VERSION = "0.6.7";
 import { runObservationCycle } from "./observer/run.js";
 import { getProviderCache, putProviderCache } from "./ledger/d1.js";
 
@@ -121,6 +121,17 @@ export default {
       return json({ok:true,app:APP,version:VERSION,mode:MODE,tradingCapability:false,engines:ENGINES,d1});
     }
     if (url.pathname === "/weather-catalog") return json(await weatherCatalog(env));
+    if (url.pathname === "/provider-architecture") return json({
+      ok:true,
+      version:VERSION,
+      architecture:"BOOTSTRAP_CACHE_STREAM",
+      phase1:{path:"REST_CATALOG_BOOTSTRAP",state:"VERIFIED",purpose:"Infrequent series catalog discovery only"},
+      phase2:{path:"D1_CACHE",state:"ACTIVE",purpose:"Persist discovered governed families and stale-safe evidence"},
+      phase3:{path:"STREAM_OR_LIFECYCLE_INGEST",state:"NEXT",purpose:"Receive market lifecycle/update events without repeated REST event traversal"},
+      restEventTraversal:{state:"HELD",reason:"Cross-domain HTTP 429 reproduced in Weather and Economics"},
+      invariant:"Streaming ingestion must not add order, bankroll, or trading credentials.",
+      readOnly:true,tradingCapability:false,baselineRealUntouched:true,weatherUntouched:true
+    });
     if (url.pathname === "/provider-access-test" || url.pathname === "/provider-test") return json({
       ok:true,
       version:VERSION,
