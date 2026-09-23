@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.5.7";
+const VERSION = "0.5.8";
 import { runObservationCycle } from "./observer/run.js";
 
 const MODE = "OBSERVATION_ONLY";
@@ -36,6 +36,7 @@ h1{margin:0}.sub,.muted,small{color:#91a8c4}.badge{display:inline-block;padding:
 <div class="card"><strong>Engine registry</strong><table><tr><th>Engine</th><th>State</th><th>Execution</th></tr><tr><td>Weather V0</td><td class="good">ACTIVE RESEARCH</td><td>NO</td></tr><tr><td>Economics V0</td><td class="warn">RESERVED</td><td>NO</td></tr></table></div>
 <div class="card"><strong>🌦️ Weather Contract Catalog</strong><p class="muted">Verified Weather contract families from the Kalshi series catalog. Click a family to request its actual Kalshi contracts. Rate-limited responses are shown explicitly and never represented as verified contracts.</p>
 <table><thead><tr><th>Weather contract family</th><th>Ticker</th><th>Research state</th><th>Execution</th></tr></thead><tbody>${rows||'<tr><td colspan="4">No Weather series returned.</td></tr>'}</tbody></table></div>
+<div class="card"><strong>🧪 Longitudinal Research Layer</strong><p class="muted">D1 now preserves per-contract signal history for prospective evaluation. These features are research-only and cannot alter Market Edge execution.</p><table><tr><th>Feature</th><th>State</th></tr><tr><td>Trajectory / prior score / delta</td><td class="good">COLLECTING</td></tr><tr><td>Recent peak + distance from peak</td><td class="good">COLLECTING</td></tr><tr><td>Persistence above domain threshold</td><td class="good">COLLECTING</td></tr><tr><td>Signal age</td><td class="good">COLLECTING</td></tr><tr><td>Source freshness</td><td class="good">COLLECTING</td></tr><tr><td>Objective outcome / resolution</td><td class="warn">SCHEMA READY · RECONCILIATION NEXT</td></tr></table></div>
 <div class="card"><strong>Protected separation</strong><p>🔒 Baseline Real untouched &nbsp; 🔒 Payne untouched &nbsp; 🔒 NFE Reasoning untouched</p><p class="muted">No bankroll · no order endpoint · no trading credentials.</p></div>
 <small>Version ${VERSION} · <code>/health</code> · <code>/weather-dashboard</code> · <code>/observe</code></small></main></body></html>`,{headers:{"content-type":"text/html; charset=utf-8"}});
 }
