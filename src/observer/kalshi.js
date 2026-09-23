@@ -51,12 +51,12 @@ export async function discoverOpenMarkets({limit=500}={}) {
   const sr=await getJson("/series");
   if(!sr.ok) return {ok:false,source:"KALSHI_WEATHER_SERIES",variant:"series_first",httpStatus:sr.httpStatus,latencyMs:sr.latencyMs,retryAfter:sr.retryAfter,markets:[],cursor:null,error:sr.httpStatus===429?"KALSHI_SERIES_RATE_LIMITED":"KALSHI_SERIES_DISCOVERY_FAILED",attempts:[sr]};
   const allSeries=Array.isArray(sr.data?.series)?sr.data.series:[];
-  const selected=selectWeatherSeries(allSeries,24);
+  const selected=selectWeatherSeries(allSeries,2);
   if(!selected.length) return {ok:false,source:"KALSHI_WEATHER_SERIES",variant:"series_first",httpStatus:200,latencyMs:sr.latencyMs,markets:[],cursor:null,error:"NO_WEATHER_SERIES",seriesExamined:allSeries.length,seriesSelected:0};
   const markets=[]; const attempts=[];
   for(const series of selected){
     if(markets.length>=limit) break;
-    const mr=await getJson("/markets",{status:"open",series_ticker:series.ticker,limit:Math.min(100,limit-markets.length),mve_filter:"exclude"});
+    const mr=await getJson("/markets",{status:"open",series_ticker:series.ticker,limit:Math.min(2,limit-markets.length),mve_filter:"exclude"});
     attempts.push({seriesTicker:series.ticker,httpStatus:mr.httpStatus,latencyMs:mr.latencyMs,retryAfter:mr.retryAfter,error:mr.error});
     if(mr.httpStatus===429) break;
     if(mr.ok && Array.isArray(mr.data?.markets)) markets.push(...mr.data.markets);
