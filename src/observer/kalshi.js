@@ -54,15 +54,23 @@ export async function discoverOpenMarkets({limit=500}={}) {
   const sr=await getJson("/series");
   if(!sr.ok) return {ok:false,source:"KALSHI_WEATHER_SERIES",variant:"series_first",httpStatus:sr.httpStatus,latencyMs:sr.latencyMs,retryAfter:sr.retryAfter,markets:[],cursor:null,error:sr.httpStatus===429?"KALSHI_SERIES_RATE_LIMITED":"KALSHI_SERIES_DISCOVERY_FAILED",attempts:[sr]};
   const allSeries=Array.isArray(sr.data?.series)?sr.data.series:[];
-  const selected=selectWeatherSeries(allSeries,1);
+  const selected=selectWeatherSeries(allSeries,2);
   if(!selected.length) return {ok:false,source:"KALSHI_WEATHER_SERIES",variant:"series_first",httpStatus:200,latencyMs:sr.latencyMs,markets:[],cursor:null,error:"NO_WEATHER_SERIES",seriesExamined:allSeries.length,seriesSelected:0};
   const markets=[]; const attempts=[];
   for(const series of selected){
     if(markets.length>=limit) break;
-    const mr=await getJson("/markets",{status:"open",series_ticker:series.ticker,limit:Math.min(2,limit-markets.length),mve_filter:"exclude"});
+    const mr=await getJson("/markets",{series_ticker:series.ticker,limit:Math.min(20,Math.max(2,limit*10)),mve_filter:"exclude"});
+    if(mr.ok && Array.isArray(mr.data?.markets)){
+      const now=Date.now();
+      const usable=mr.data.markets.filter(m=>{
+        const status=String(m?.status||"").toLowerCase();
+        const close=Date.parse(m?.close_time||"");
+        return !["closed","settled","finalized"].includes(status) && (!Number.isFinite(close)||close>now);
+      });
+      markets.push(...usable.slice(0,Math.max(0,limit-markets.length)));
+    }
     attempts.push({seriesTicker:series.ticker,httpStatus:mr.httpStatus,latencyMs:mr.latencyMs,retryAfter:mr.retryAfter,error:mr.error});
     if(mr.httpStatus===429) break;
-    if(mr.ok && Array.isArray(mr.data?.markets)) markets.push(...mr.data.markets);
   }
   if(!markets.length) return {ok:false,source:"KALSHI_WEATHER_SERIES",variant:"series_first",httpStatus:attempts.find(a=>a.httpStatus)?.httpStatus||200,latencyMs:sr.latencyMs+attempts.reduce((n,a)=>n+(a.latencyMs||0),0),markets:[],cursor:null,error:attempts.some(a=>a.httpStatus===429)?"KALSHI_WEATHER_MARKETS_RATE_LIMITED":"NO_OPEN_WEATHER_MARKETS",seriesExamined:allSeries.length,seriesSelected:selected.length,weatherSeries:selected.map(s=>({ticker:s.ticker,title:s.title||null})),attempts};
   return {ok:true,source:"KALSHI_WEATHER_SERIES",variant:"series_first",httpStatus:200,latencyMs:sr.latencyMs+attempts.reduce((n,a)=>n+(a.latencyMs||0),0),markets:markets.slice(0,limit),cursor:null,attemptCount:1+attempts.length,priorFailures:attempts.filter(a=>a.error),seriesExamined:allSeries.length,seriesSelected:selected.length,weatherSeries:selected.map(s=>({ticker:s.ticker,title:s.title||null}))};
