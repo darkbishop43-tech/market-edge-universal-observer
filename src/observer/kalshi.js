@@ -1,5 +1,23 @@
 const KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2";
-const WEATHER_TERMS = ["weather","temperature","rain","snow","snowfall","hurricane","wind","heat","degrees"];
+
+const WEATHER_PATTERNS = [
+  /\bweather\b/i,
+  /\btemperatures?\b/i,
+  /\bhigh temperature\b/i,
+  /\blow temperature\b/i,
+  /\brain(?:fall|y|ing)?\b/i,
+  /\bprecipitation\b/i,
+  /\bsnow(?:fall|y|ing)?\b/i,
+  /\bhurricanes?\b/i,
+  /\btropical storms?\b/i,
+  /\btornado(?:es)?\b/i,
+  /\bwind(?:s|y)?\b/i,
+  /\bheat(?:wave|waves)?\b/i,
+  /\bclimate\b/i,
+  /\bel ni(?:n|ñ)o\b/i,
+  /\bsea ice\b/i,
+  /\bdegrees?\s+(?:fahrenheit|celsius)\b/i,
+];
 
 async function getJson(path, params={}) {
   const url=new URL(KALSHI_BASE+path);
@@ -14,8 +32,8 @@ async function getJson(path, params={}) {
 }
 
 function weatherSeries(series){
-  const text=[series?.ticker,series?.title,series?.category,series?.tags].flat().filter(Boolean).join(" ").toLowerCase();
-  return WEATHER_TERMS.some(t=>text.includes(t));
+  const text=[series?.ticker,series?.title,series?.category,series?.tags].flat().filter(Boolean).join(" ");
+  return WEATHER_PATTERNS.some(pattern=>pattern.test(text));
 }
 
 export async function discoverOpenMarkets({limit=500}={}) {
@@ -38,7 +56,6 @@ export async function discoverOpenMarkets({limit=500}={}) {
   if(!markets.length) return {ok:false,source:"KALSHI_WEATHER_SERIES",variant:"series_first",httpStatus:attempts.find(a=>a.httpStatus)?.httpStatus||200,latencyMs:sr.latencyMs+attempts.reduce((n,a)=>n+(a.latencyMs||0),0),markets:[],cursor:null,error:attempts.some(a=>a.httpStatus===429)?"KALSHI_WEATHER_MARKETS_RATE_LIMITED":"NO_OPEN_WEATHER_MARKETS",seriesExamined:allSeries.length,seriesSelected:selected.length,weatherSeries:selected.map(s=>({ticker:s.ticker,title:s.title||null})),attempts};
   return {ok:true,source:"KALSHI_WEATHER_SERIES",variant:"series_first",httpStatus:200,latencyMs:sr.latencyMs+attempts.reduce((n,a)=>n+(a.latencyMs||0),0),markets:markets.slice(0,limit),cursor:null,attemptCount:1+attempts.length,priorFailures:attempts.filter(a=>a.error),seriesExamined:allSeries.length,seriesSelected:selected.length,weatherSeries:selected.map(s=>({ticker:s.ticker,title:s.title||null}))};
 }
-
 
 export async function discoverWeatherSeriesCatalog() {
   const sr=await getJson("/series");
