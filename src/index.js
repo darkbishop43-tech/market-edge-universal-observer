@@ -1,7 +1,8 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.6.8";
+const VERSION = "0.7.0";
 import { runObservationCycle } from "./observer/run.js";
-import { getProviderCache, putProviderCache } from "./ledger/d1.js";
+import { getProviderCache, putProviderCache, getLastStreamEvidence } from "./ledger/d1.js";
+export { KalshiStreamObserver } from "./stream/kalshi-stream-do.js";
 
 const MODE = "OBSERVATION_ONLY";
 
@@ -105,8 +106,100 @@ h1{margin:0}.topline{display:flex;align-items:flex-start;justify-content:space-b
 <div class="card"><strong>🎯 Actual Seed Contracts</strong><p class="muted">Up to two actual open Kalshi contracts from the governed Weather seed path. Read-only evidence; zero order capability. Source: ${escHtml(seedContracts.providerState||"UNKNOWN")}.</p><table><thead><tr><th>Contract</th><th>Ticker</th><th>Status</th><th>YES bid / ask</th><th>NO bid / ask</th><th>Close</th></tr></thead><tbody>${contractRows||'<tr><td colspan="6">No verified seed contracts available yet.</td></tr>'}</tbody></table></div>
 <div class="card"><strong>🌱 Seed Observatory</strong><p class="muted">V0 intentionally observes only 1–2 representative contracts per domain at a time. Expansion is evidence-earned, not volume-driven.</p><table><tr><th>Rule</th><th>V0 state</th></tr><tr><td>Weather observations per cycle</td><td class="good">2 MAX</td></tr><tr><td>Minimum refresh boundary</td><td class="good">5 MINUTES</td></tr><tr><td>Selection purpose</td><td>Research suitability · not highest-score chasing</td></tr><tr><td>Expansion</td><td>Only after longitudinal + resolution evidence</td></tr></table></div>
 <div class="card"><strong>🧪 Longitudinal Research Layer</strong><p class="muted">D1 now preserves per-contract signal history for prospective evaluation. These features are research-only and cannot alter Market Edge execution.</p><table><tr><th>Feature</th><th>State</th></tr><tr><td>Trajectory / prior score / delta</td><td class="good">COLLECTING</td></tr><tr><td>Recent peak + distance from peak</td><td class="good">COLLECTING</td></tr><tr><td>Persistence above domain threshold</td><td class="good">COLLECTING</td></tr><tr><td>Signal age</td><td class="good">COLLECTING</td></tr><tr><td>Source freshness</td><td class="good">COLLECTING</td></tr><tr><td>Objective outcome / resolution</td><td class="warn">SCHEMA READY · RECONCILIATION NEXT</td></tr></table></div>
-<div class="card"><strong>Protected separation</strong><p>🔒 Baseline Real untouched &nbsp; 🔒 Payne untouched &nbsp; 🔒 NFE Reasoning untouched</p><p class="muted">No bankroll · no order endpoint · no trading credentials.</p></div>
+<div class="card"><strong>Protected separation</strong><p>🔒 Baseline Real untouched &nbsp; 🔒 Payne untouched &nbsp; 🔒 NFE Reasoning untouched</p><p class="muted">No bankroll · no order endpoint · Observer credential boundary isolated from Baseline.</p></div>
 <small>Version ${VERSION} · <code>/health</code> · <code>/weather-dashboard</code> · <code>/observe</code></small></main></body></html>`,{headers:{"content-type":"text/html; charset=utf-8"}});
+}
+
+function streamStub(env){
+  if(!env?.UMEO_STREAM) return null;
+  const id=env.UMEO_STREAM.idFromName("kalshi-ticker-v1");
+  return env.UMEO_STREAM.get(id);
+}
+
+async function getStreamState(env,{ensure=false}={}){
+  const stub=streamStub(env);
+  if(!stub) return {ok:false,state:"STREAM_BINDING_MISSING",credential:{present:false,explicitReadScopeConfigured:false},tradingCapability:false};
+  try{
+    if(ensure) await stub.fetch("https://umeo.internal/ensure",{method:"POST"});
+    const response=await stub.fetch("https://umeo.internal/state");
+    return await response.json();
+  }catch(error){
+    return {ok:false,state:"STREAM_STATE_UNAVAILABLE",lastError:String(error?.message||error).slice(0,160),tradingCapability:false};
+  }
+}
+
+async function streamAcceptance(env){
+  const state=await getStreamState(env,{ensure:true});
+  const real=await getLastStreamEvidence(env?.DB,{evidenceClass:"REAL_PROVIDER",channel:"ticker"});
+  const evidence=real?.evidence||null;
+  const credentialReady=Boolean(state?.credential?.present && state?.credential?.explicitReadScopeConfigured);
+  const result=evidence?"REAL_TICKER_EVIDENCE_PRESENT":(credentialReady?"AWAITING_REAL_PROVIDER_TICKER":"READY_FOR_UMEO_READ_ONLY_CREDENTIAL");
+  return {
+    ok:true,
+    version:VERSION,
+    test:"UMEO_KALSHI_TICKER_STREAM_ACCEPTANCE",
+    result,
+    provider:"KALSHI",
+    channel:"ticker",
+    credential:{
+      present:Boolean(state?.credential?.present),
+      explicitReadScopeConfigured:Boolean(state?.credential?.explicitReadScopeConfigured),
+      configuredScope:state?.credential?.configuredScope??null,
+      requiredScope:"read",
+      writeScopesConfigured:false
+    },
+    connection:{
+      state:state?.state||"UNKNOWN",
+      authenticated:Boolean(state?.authenticated),
+      subscriptionAcknowledged:Boolean(state?.subscriptionAcknowledged),
+      connectionId:state?.connectionId??null,
+      subscriptionId:state?.subscriptionId??null,
+      reconnectAttempt:Number(state?.reconnectAttempt||0),
+      nextRetryAt:state?.nextRetryAt??null,
+      lastError:state?.lastError??null,
+      lastConnectedAt:state?.lastConnectedAt??null,
+      lastSubscribedAt:state?.lastSubscribedAt??null
+    },
+    lastGenuineProviderMessage:evidence?{
+      evidenceClass:evidence.evidenceClass,
+      provider:evidence.provider,
+      channel:evidence.channel,
+      marketTicker:evidence.marketTicker,
+      providerSourceTime:evidence.providerSourceTime,
+      umeoIngestTime:evidence.ingestedAt,
+      messageType:evidence.messageType,
+      connectionId:evidence.connectionId,
+      subscriptionId:evidence.subscriptionId,
+      marketState:evidence.marketState,
+      rawSource:evidence.rawSource
+    }:null,
+    persistence:evidence?"D1_PERSISTED_REAL_PROVIDER_EVIDENCE":"NO_REAL_PROVIDER_EVIDENCE_YET",
+    simulatedEvidenceCountsAsAcceptance:false,
+    readOnly:true,
+    tradingCapability:false,
+    orderCapability:false,
+    cancellationCapability:false,
+    transferCapability:false,
+    bankrollCapability:false,
+    baselineBindingPresent:false,
+    repeatedRestEventTraversal:"HELD",
+    weatherUntouched:true,
+    economicsReadOnly:true
+  };
+}
+
+async function runStreamFixture(env){
+  const stub=streamStub(env);
+  if(!stub) return {ok:false,test:"SIMULATED_TEST_FIXTURE",error:"STREAM_BINDING_MISSING",realProviderEvidence:false,tradingCapability:false};
+  const response=await stub.fetch("https://umeo.internal/fixture",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({fixture:"SIMULATED_TEST_FIXTURE"})});
+  return await response.json();
+}
+
+async function ensureStream(env){
+  const stub=streamStub(env);
+  if(!stub) return {ok:false,state:"STREAM_BINDING_MISSING"};
+  const response=await stub.fetch("https://umeo.internal/ensure",{method:"POST"});
+  return await response.json();
 }
 
 async function observe(env) { return runObservationCycle(env); }
@@ -117,42 +210,55 @@ export default {
     if (url.pathname === "/") return dashboard(env);
     if (url.pathname === "/health") {
       let d1={bound:Boolean(env?.DB),schemaReady:false,status:env?.DB?"BOUND_NOT_CHECKED":"D1_NOT_BOUND"};
-      if(env?.DB){try{const row=await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('observation_cycles','observations','resolutions','signal_state','provider_cache')").first();const n=Number(row?.n||0);d1={bound:true,schemaReady:n===5,status:n===5?"D1_SCHEMA_READY":"D1_BOUND_SCHEMA_PENDING",expectedTables:5,presentTables:n};}catch(error){d1={bound:true,schemaReady:false,status:"D1_HEALTH_READ_FAILED",error:String(error?.message||error).slice(0,120)};}}
-      return json({ok:true,app:APP,version:VERSION,mode:MODE,tradingCapability:false,engines:ENGINES,d1});
+      if(env?.DB){try{const row=await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type=\'table\' AND name IN (\'observation_cycles\',\'observations\',\'resolutions\',\'signal_state\',\'provider_cache\',\'stream_evidence\')").first();const n=Number(row?.n||0);d1={bound:true,schemaReady:n===6,status:n===6?"D1_SCHEMA_READY":"D1_BOUND_SCHEMA_PENDING",expectedTables:6,presentTables:n};}catch(error){d1={bound:true,schemaReady:false,status:"D1_HEALTH_READ_FAILED",error:String(error?.message||error).slice(0,120)};}}
+      return json({ok:true,app:APP,version:VERSION,mode:MODE,tradingCapability:false,engines:ENGINES,d1,stream:{durableObjectBound:Boolean(env?.UMEO_STREAM),credentialGate:"EXPLICIT_READ_SCOPE_REQUIRED"}});
     }
     if (url.pathname === "/weather-catalog") return json(await weatherCatalog(env));
     if (url.pathname === "/stream-readiness-test") return json({
       ok:true,
       version:VERSION,
       test:"STREAM_INGEST_READINESS",
-      result:"READY_FOR_TRANSPORT_INTEGRATION",
+      result:"READY_FOR_UMEO_READ_ONLY_CREDENTIAL",
       prerequisites:{
         restCatalogBootstrap:"VERIFIED",
         d1EvidenceCache:"ACTIVE",
+        streamEvidenceSchema:"ACTIVE",
+        isolatedDurableObject:"BUILT",
+        authenticatedHandshakeInterface:"BUILT_FAIL_CLOSED",
+        tickerSubscriptionPath:"BUILT",
+        reconnectRecovery:"BUILT",
         crossDomain429Boundary:"CONFIRMED",
         repeatedRestEventTraversal:"HELD"
       },
       transportContract:{
         mode:"READ_ONLY",
-        acceptedEventClasses:["ticker","market_lifecycle"],
+        firstAcceptanceChannel:"ticker",
+        nextGovernedChannel:"market_lifecycle_v2",
         persistence:"D1",
+        credentialRequired:true,
+        requiredExplicitScope:"read",
+        scopeOmissionAllowed:false,
         orderCapability:false,
-        bankrollCapability:false,
-        tradingCredentialsRequired:false
+        cancellationCapability:false,
+        transferCapability:false,
+        bankrollCapability:false
       },
-      acceptanceNext:"Connect provider streaming/lifecycle transport and prove one real market update is persisted without REST event traversal.",
+      acceptanceNext:"Install the separate explicit read-scope UMEO credential, authenticate, subscribe to real ticker, receive and persist one genuine provider update.",
       baselineRealUntouched:true,
       weatherUntouched:true
     });
+    if (url.pathname === "/stream-state") return json(await getStreamState(env,{ensure:false}));
+    if (url.pathname === "/stream-acceptance") return json(await streamAcceptance(env));
+    if (url.pathname === "/stream-fixture-test") return json(await runStreamFixture(env));
     if (url.pathname === "/provider-architecture") return json({
       ok:true,
       version:VERSION,
       architecture:"BOOTSTRAP_CACHE_STREAM",
       phase1:{path:"REST_CATALOG_BOOTSTRAP",state:"VERIFIED",purpose:"Infrequent series catalog discovery only"},
       phase2:{path:"D1_CACHE",state:"ACTIVE",purpose:"Persist discovered governed families and stale-safe evidence"},
-      phase3:{path:"STREAM_OR_LIFECYCLE_INGEST",state:"NEXT",purpose:"Receive market lifecycle/update events without repeated REST event traversal"},
+      phase3:{path:"AUTHENTICATED_STREAM_INGEST",state:"BUILT_TO_CREDENTIAL_GATE",purpose:"Isolated Durable Object receives ticker updates without repeated REST event traversal"},
       restEventTraversal:{state:"HELD",reason:"Cross-domain HTTP 429 reproduced in Weather and Economics"},
-      invariant:"Streaming ingestion must not add order, bankroll, or trading credentials.",
+      invariant:"Streaming ingestion is Observer-only, explicit read-scope credential gated, and contains zero order, cancellation, transfer, bankroll, or Baseline capability.",
       readOnly:true,tradingCapability:false,baselineRealUntouched:true,weatherUntouched:true
     });
     if (url.pathname === "/provider-access-test" || url.pathname === "/provider-test") return json({
@@ -202,5 +308,5 @@ export default {
     if (url.pathname === "/observe") return json(await observe(env));
     return json({ ok: false, error: "NOT_FOUND" }, 404);
   },
-  async scheduled(controller, env, ctx) { ctx.waitUntil(observe(env)); },
+  async scheduled(controller, env, ctx) { ctx.waitUntil(Promise.allSettled([observe(env),ensureStream(env)])); },
 };
