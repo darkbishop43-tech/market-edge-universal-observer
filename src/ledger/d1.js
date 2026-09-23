@@ -5,7 +5,9 @@ export async function ensureLedgerSchema(db) {
     `CREATE TABLE IF NOT EXISTS observations (observation_id TEXT PRIMARY KEY, cycle_id TEXT NOT NULL, observed_at TEXT NOT NULL, domain TEXT NOT NULL, engine TEXT NOT NULL, ticker TEXT, event_ticker TEXT, title TEXT, close_time TEXT, prediction_status TEXT NOT NULL, prediction TEXT, probability REAL, yes_bid REAL, yes_ask REAL, no_bid REAL, no_ask REAL, liquidity REAL, evidence_source TEXT, evidence_retrieved_at TEXT, model TEXT, model_status TEXT, failure_reason TEXT, payload_json TEXT NOT NULL)`,
     `CREATE INDEX IF NOT EXISTS idx_obs_domain_time ON observations(domain, observed_at)`,
     `CREATE INDEX IF NOT EXISTS idx_obs_ticker_time ON observations(ticker, observed_at)`,
-    `CREATE TABLE IF NOT EXISTS resolutions (observation_id TEXT PRIMARY KEY, resolved_at TEXT NOT NULL, result TEXT, settlement_value REAL, hypothetical_pnl REAL, estimated_fees REAL, calibration_error REAL, liquidity_note TEXT, reconciliation_json TEXT)`
+    `CREATE TABLE IF NOT EXISTS resolutions (observation_id TEXT PRIMARY KEY, resolved_at TEXT NOT NULL, result TEXT, settlement_value REAL, hypothetical_pnl REAL, estimated_fees REAL, calibration_error REAL, liquidity_note TEXT, reconciliation_json TEXT)`,
+    `CREATE TABLE IF NOT EXISTS signal_state (domain TEXT NOT NULL, ticker TEXT NOT NULL, first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL, sample_count INTEGER NOT NULL DEFAULT 0, first_score REAL, last_score REAL, recent_peak REAL, recent_trough REAL, threshold_first_at TEXT, threshold_continuous_since TEXT, last_source_at TEXT, updated_at TEXT NOT NULL, PRIMARY KEY(domain,ticker))`,
+    `CREATE INDEX IF NOT EXISTS idx_signal_state_updated ON signal_state(domain,updated_at)`
   ];
   await db.batch(statements.map(sql=>db.prepare(sql)));
   return {ok:true,status:"D1_SCHEMA_READY"};
@@ -31,4 +33,34 @@ export async function persistCycle(db,cycle) {
   }
   const result=await db.batch(statements);
   return {ok:true,status:"PERSISTED",writes:statements.length,batches:1,resultCount:result.length,schema:"WEATHER_LEDGER_V0"};
+}
+
+
+export async function getSignalState(db,domain,ticker) {
+  if(!db||!ticker) return null;
+  await ensureLedgerSchema(db);
+  return await db.prepare(`SELECT * FROM signal_state WHERE domain=? AND ticker=?`).bind(domain,ticker).first();
+}
+
+export async function upsertSignalState(db,{domain,ticker,observedAt,score,sourceAt,threshold=0.5}) {
+  if(!db||!ticker) return {ok:false,status:"D1_NOT_BOUND_OR_TICKER_MISSING"};
+  await ensureLedgerSchema(db);
+  const prev=await getSignalState(db,domain,ticker);
+  const n=Number(score);
+  const valid=Number.isFinite(n);
+  const firstSeen=prev?.first_seen_at||observedAt;
+  const firstScore=prev?.first_score??(valid?n:null);
+  const peak=valid?Math.max(Number(prev?.recent_peak??n),n):(prev?.recent_peak??null);
+  const trough=valid?Math.min(Number(prev?.recent_trough??n),n):(prev?.recent_trough??null);
+  const thresholdFirst=prev?.threshold_first_at||(valid&&n>=threshold?observedAt:null);
+  const continuous=valid&&n>=threshold?(prev?.threshold_continuous_since||observedAt):null;
+  await db.prepare(`INSERT INTO signal_state
+    (domain,ticker,first_seen_at,last_seen_at,sample_count,first_score,last_score,recent_peak,recent_trough,threshold_first_at,threshold_continuous_since,last_source_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(domain,ticker) DO UPDATE SET last_seen_at=excluded.last_seen_at,sample_count=excluded.sample_count,last_score=excluded.last_score,recent_peak=excluded.recent_peak,recent_trough=excluded.recent_trough,threshold_first_at=excluded.threshold_first_at,threshold_continuous_since=excluded.threshold_continuous_since,last_source_at=excluded.last_source_at,updated_at=excluded.updated_at`)
+    .bind(domain,ticker,firstSeen,observedAt,Number(prev?.sample_count||0)+1,firstScore,valid?n:null,peak,trough,thresholdFirst,continuous,sourceAt||null,observedAt).run();
+  const ageSec=Math.max(0,(Date.parse(observedAt)-Date.parse(firstSeen))/1000);
+  const persistenceSec=continuous?Math.max(0,(Date.parse(observedAt)-Date.parse(continuous))/1000):0;
+  const freshnessSec=sourceAt?Math.max(0,(Date.parse(observedAt)-Date.parse(sourceAt))/1000):null;
+  return {ok:true,status:"SIGNAL_STATE_UPDATED",trajectory:{priorScore:prev?.last_score??null,currentScore:valid?n:null,delta:valid&&prev?.last_score!=null?n-Number(prev.last_score):null,peak,distanceFromPeak:valid&&peak!=null?peak-n:null,trough},persistence:{threshold,continuousSince:continuous,seconds:persistenceSec},signalAgeSeconds:ageSec,freshnessSeconds:freshnessSec,sampleCount:Number(prev?.sample_count||0)+1};
 }
