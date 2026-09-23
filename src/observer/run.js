@@ -16,7 +16,9 @@ export async function runObservationCycle(env={}) {
   const discoveryLimit=intSetting(env,"DISCOVERY_MARKET_LIMIT",Math.min(10,totalActiveCeiling),1,5000);
   const minRefreshSeconds=intSetting(env,"MIN_REFRESH_SECONDS",300,60,86400);
 
-  const discovery=await discoverOpenMarkets({limit:discoveryLimit});
+  // The scheduled observer intentionally does not perform broad generic discovery.
+  // Actual Weather seeds are governed by the dashboard/catalog series path.
+  const discovery={ok:false,source:"GOVERNED_WEATHER_SEEDS",error:"SCHEDULED_DISCOVERY_DEFERRED_TO_GOVERNED_SEED_PATH",markets:[]};
   if(!discovery.ok) return {ok:false,observedAt,tradingCapability:false,discovery,
     governor:{totalActiveCeiling,weatherPerCycle,discoveryLimit,minRefreshSeconds},
     counts:{discovered:0,weather:0,economics:0,unclassified:0},weatherObservations:[],persistence:{ok:false,status:"SKIPPED_DISCOVERY_FAILED"}};
