@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.6.5";
+const VERSION = "0.6.6";
 import { runObservationCycle } from "./observer/run.js";
 import { getProviderCache, putProviderCache } from "./ledger/d1.js";
 
@@ -121,7 +121,7 @@ export default {
       return json({ok:true,app:APP,version:VERSION,mode:MODE,tradingCapability:false,engines:ENGINES,d1});
     }
     if (url.pathname === "/weather-catalog") return json(await weatherCatalog(env));
-    if (url.pathname === "/provider-access-test") return json({
+    if (url.pathname === "/provider-access-test" || url.pathname === "/provider-test") return json({
       ok:true,
       version:VERSION,
       test:"CROSS_DOMAIN_PROVIDER_BOUNDARY",
