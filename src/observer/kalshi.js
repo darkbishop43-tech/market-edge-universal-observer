@@ -50,9 +50,9 @@ function selectWeatherSeries(allSeries, limit){
   return (researchSuitable.length?researchSuitable:weather).slice(0,limit);
 }
 
-export async function discoverOpenMarkets({limit=2,seriesTickers=[]}={}) {
+export async function discoverOpenMarkets({limit=2,seriesTickers=[],maxSeriesScan=12}={}) {
   // Authoritative Weather discovery path: series -> open events -> nested markets.
-  const requested=[...new Set((seriesTickers||[]).map(x=>String(x||"").trim().toUpperCase()).filter(x=>/^[A-Z0-9_-]{2,40}$/.test(x)))].slice(0,Math.max(1,limit));
+  const requested=[...new Set((seriesTickers||[]).map(x=>String(x||"").trim().toUpperCase()).filter(x=>/^[A-Z0-9_-]{2,40}$/.test(x)))].slice(0,Math.max(1,maxSeriesScan));
   if(!requested.length) return {ok:false,source:"KALSHI_SERIES_EVENTS",variant:"open_events_nested_markets",markets:[],error:"NO_GOVERNED_WEATHER_SERIES"};
   const attempts=[], found=[];
   for(const ticker of requested){
