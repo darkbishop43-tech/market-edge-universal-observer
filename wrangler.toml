@@ -5,7 +5,11 @@ compatibility_date = "2026-09-21"
 # V0 is intentionally observation-only.
 # No Baseline/Payne/NFE bindings and no trading credentials belong here.
 #
-# Persistence bindings will be added only after the isolated Cloudflare
-# resources are created and verified.
-#
+# Isolated Universal Observer evidence ledger. This declaration mirrors the
+# already-verified Cloudflare Production DB binding.
+[[d1_databases]]
+binding = "DB"
+database_name = "market-edge-universal-observer-ledger"
+database_id = "af04009f-010f-4020-8d66-df8fcba1b823"
+
 # A single Cron trigger will be enabled during Cloudflare activation.
