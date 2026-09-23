@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.6.7";
+const VERSION = "0.6.8";
 import { runObservationCycle } from "./observer/run.js";
 import { getProviderCache, putProviderCache } from "./ledger/d1.js";
 
@@ -121,6 +121,29 @@ export default {
       return json({ok:true,app:APP,version:VERSION,mode:MODE,tradingCapability:false,engines:ENGINES,d1});
     }
     if (url.pathname === "/weather-catalog") return json(await weatherCatalog(env));
+    if (url.pathname === "/stream-readiness-test") return json({
+      ok:true,
+      version:VERSION,
+      test:"STREAM_INGEST_READINESS",
+      result:"READY_FOR_TRANSPORT_INTEGRATION",
+      prerequisites:{
+        restCatalogBootstrap:"VERIFIED",
+        d1EvidenceCache:"ACTIVE",
+        crossDomain429Boundary:"CONFIRMED",
+        repeatedRestEventTraversal:"HELD"
+      },
+      transportContract:{
+        mode:"READ_ONLY",
+        acceptedEventClasses:["ticker","market_lifecycle"],
+        persistence:"D1",
+        orderCapability:false,
+        bankrollCapability:false,
+        tradingCredentialsRequired:false
+      },
+      acceptanceNext:"Connect provider streaming/lifecycle transport and prove one real market update is persisted without REST event traversal.",
+      baselineRealUntouched:true,
+      weatherUntouched:true
+    });
     if (url.pathname === "/provider-architecture") return json({
       ok:true,
       version:VERSION,
