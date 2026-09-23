@@ -1,4 +1,4 @@
-const KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2";
+const KALSHI_BASE = "https://external-api.kalshi.com/trade-api/v2";
 
 const WEATHER_PATTERNS = [
   /\bweather\b/i,
@@ -26,15 +26,24 @@ const NON_WEATHER_PATTERNS = [
   /\b(?:mountain|resort)\b.*\b(?:opening|closing)\b|\b(?:opening|closing)\b.*\b(?:mountain|resort)\b/i,
 ];
 
-async function getJson(path, params={}) {
+const sleep=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
+
+async function getJson(path, params={}, {max429Retries=2}={}) {
   const url=new URL(KALSHI_BASE+path);
   for(const [k,v] of Object.entries(params)) if(v!=null) url.searchParams.set(k,String(v));
   const started=Date.now();
   try{
-    const response=await fetch(url,{headers:{accept:"application/json","user-agent":"market-edge-universal-observer/0.5.6"},cache:"no-store"});
+    let response=null;
+    let retryCount=0;
+    do {
+      response=await fetch(url,{headers:{accept:"application/json","user-agent":"market-edge-universal-observer/0.5.25"},cache:"no-store"});
+      if(response.status!==429 || retryCount>=max429Retries) break;
+      await sleep(500*Math.pow(2,retryCount));
+      retryCount++;
+    } while(true);
     const retryAfter=response.headers.get("retry-after");
-    if(!response.ok) return {ok:false,httpStatus:response.status,latencyMs:Date.now()-started,retryAfter:retryAfter||null,data:null,error:"HTTP_"+response.status,url:url.toString()};
-    return {ok:true,httpStatus:response.status,latencyMs:Date.now()-started,retryAfter:null,data:await response.json(),error:null,url:url.toString()};
+    if(!response.ok) return {ok:false,httpStatus:response.status,latencyMs:Date.now()-started,retryAfter:retryAfter||null,retryCount,data:null,error:"HTTP_"+response.status,url:url.toString()};
+    return {ok:true,httpStatus:response.status,latencyMs:Date.now()-started,retryAfter:null,retryCount,data:await response.json(),error:null,url:url.toString()};
   }catch(error){return {ok:false,httpStatus:null,latencyMs:Date.now()-started,retryAfter:null,data:null,error:String(error?.message||error),url:url.toString()};}
 }
 
