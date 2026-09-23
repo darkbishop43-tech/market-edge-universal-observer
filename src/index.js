@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.4.8";
+const VERSION = "0.4.9";
 import { runObservationCycle } from "./observer/run.js";
 
 const MODE = "OBSERVATION_ONLY";
@@ -51,12 +51,16 @@ button{background:#1f6feb;color:white;border:0;border-radius:9px;padding:10px 14
 <script>
 async function runObservation(){
  const b=document.getElementById("run");b.disabled=true;document.getElementById("status").textContent="Observing public markets…";
- try{const r=await fetch("/observe");const d=await r.json();document.getElementById("discovered").textContent=d.counts?.discovered??0;document.getElementById("weather").textContent=d.counts?.weather??0;
+ try{
+ const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),25000);
+ const r=await fetch("/observe?interactive=1",{cache:"no-store",signal:controller.signal});clearTimeout(timer);
+ const d=await r.json();
+ if(!r.ok||d?.ok===false) throw new Error(d?.discovery?.error||d?.error||("HTTP "+r.status));document.getElementById("discovered").textContent=d.counts?.discovered??0;document.getElementById("weather").textContent=d.counts?.weather??0;
  const obs=d.weatherObservations||[];document.getElementById("predictions").textContent=obs.filter(x=>x.probability!=null).length;
  document.getElementById("ledger").textContent=d.persistence?.status||"NOT BOUND";
  document.getElementById("status").textContent="Observed "+(d.observedAt||"")+" · D1 "+(d.persistence?.status||"UNKNOWN")+" · wrote "+(d.persistence?.writes??0)+" evidence rows · deferred "+(d.limits?.weatherDeferred??0)+" weather candidates";
  document.getElementById("rows").innerHTML=obs.slice(0,24).map(x=>"<tr><td>"+esc(x.market?.title||x.market?.ticker||"")+"</td><td>"+esc(x.prediction||"NO PREDICTION")+"</td><td>"+(x.probability==null?"—":Math.round(x.probability*100)+"%")+"</td><td>"+esc(x.evidence?.source||"—")+"</td><td>"+esc(x.failureReason||x.model?.modelStatus||"—")+"</td></tr>").join("");
- }catch(e){document.getElementById("status").textContent="Observation failed: "+e.message}finally{b.disabled=false}}
+ }catch(e){document.getElementById("status").textContent="Observation failed: "+(e?.name==="AbortError"?"interactive cycle timed out after 25s":e.message)}finally{b.disabled=false}}
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 window.runObservation=runObservation;
 </script><small class="muted">Version ${VERSION} · <code>/health</code> · <code>/observe</code></small></main></body></html>`,{headers:{"content-type":"text/html; charset=utf-8"}});
