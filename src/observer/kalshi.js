@@ -50,18 +50,29 @@ function selectWeatherSeries(allSeries, limit){
   return (researchSuitable.length?researchSuitable:weather).slice(0,limit);
 }
 
-export async function discoverOpenMarkets({limit=500}={}) {
-  // Contract discovery is intentionally independent from /series catalog discovery.
-  // Kalshi market rows already carry series_ticker, so one bounded open-markets
-  // request avoids a second /series call and the fragile series->event join.
-  const mr=await getJson("/markets",{status:"open",limit:Math.min(100,Math.max(20,limit*20)),mve_filter:"exclude"});
-  if(!mr.ok) return {ok:false,source:"KALSHI_OPEN_MARKETS",variant:"bounded_open_markets",httpStatus:mr.httpStatus,latencyMs:mr.latencyMs,retryAfter:mr.retryAfter,markets:[],cursor:null,error:mr.httpStatus===429?"KALSHI_OPEN_MARKETS_RATE_LIMITED":"KALSHI_OPEN_MARKETS_FAILED",attempts:[mr]};
-  const all=Array.isArray(mr.data?.markets)?mr.data.markets:[];
-  const weather=all.filter(m=>weatherSeries({ticker:m?.series_ticker||m?.ticker,title:[m?.title,m?.subtitle].filter(Boolean).join(" ")}));
-  const suitable=weather.filter(m=>US_RESEARCH_CITY.test([m?.title,m?.subtitle,m?.series_ticker].filter(Boolean).join(" ")) && /temp|temperature/i.test([m?.title,m?.subtitle,m?.series_ticker].filter(Boolean).join(" ")));
-  const selected=(suitable.length?suitable:weather).slice(0,limit);
-  if(!selected.length) return {ok:false,source:"KALSHI_OPEN_MARKETS",variant:"bounded_open_markets",httpStatus:200,latencyMs:mr.latencyMs,markets:[],cursor:mr.data?.cursor||null,error:"NO_OPEN_WEATHER_MARKETS_IN_BOUNDED_PAGE",marketsExamined:all.length};
-  return {ok:true,source:"KALSHI_OPEN_MARKETS",variant:"bounded_open_markets",httpStatus:200,latencyMs:mr.latencyMs,markets:selected,cursor:mr.data?.cursor||null,attemptCount:1,marketsExamined:all.length,weatherMarketsFound:weather.length};
+export async function discoverOpenMarkets({limit=2,seriesTickers=[]}={}) {
+  // Deterministic Weather contract discovery: query known governed Weather series
+  // directly instead of hoping a Weather contract appears in a generic market page.
+  const requested=[...new Set((seriesTickers||[]).map(x=>String(x||"").trim().toUpperCase()).filter(x=>/^[A-Z0-9_-]{2,40}$/.test(x)))].slice(0,Math.max(1,limit));
+  if(!requested.length) return {ok:false,source:"KALSHI_SERIES_MARKETS",variant:"governed_series_direct",httpStatus:null,markets:[],error:"NO_GOVERNED_WEATHER_SERIES"};
+
+  const attempts=[];
+  const found=[];
+  for(const ticker of requested){
+    const mr=await getJson("/markets",{series_ticker:ticker,status:"open",limit:100,mve_filter:"exclude"});
+    attempts.push({seriesTicker:ticker,ok:mr.ok,httpStatus:mr.httpStatus,latencyMs:mr.latencyMs,retryAfter:mr.retryAfter,error:mr.error});
+    if(!mr.ok) continue;
+    const markets=Array.isArray(mr.data?.markets)?mr.data.markets:[];
+    for(const m of markets){
+      if(!m?.ticker || found.some(x=>x.ticker===m.ticker)) continue;
+      found.push(m);
+      if(found.length>=limit) break;
+    }
+    if(found.length>=limit) break;
+  }
+  if(found.length) return {ok:true,source:"KALSHI_SERIES_MARKETS",variant:"governed_series_direct",httpStatus:200,markets:found.slice(0,limit),attemptCount:attempts.length,attempts,seriesTickers:requested};
+  const rateLimited=attempts.some(x=>x.httpStatus===429);
+  return {ok:false,source:"KALSHI_SERIES_MARKETS",variant:"governed_series_direct",httpStatus:rateLimited?429:(attempts.find(x=>x.httpStatus)?.httpStatus||200),markets:[],error:rateLimited?"KALSHI_SERIES_MARKETS_RATE_LIMITED":"NO_OPEN_CONTRACTS_FOR_GOVERNED_WEATHER_SERIES",attempts,seriesTickers:requested};
 }
 
 export async function discoverWeatherSeriesCatalog() {
