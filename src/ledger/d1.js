@@ -7,7 +7,8 @@ export async function ensureLedgerSchema(db) {
     `CREATE INDEX IF NOT EXISTS idx_obs_ticker_time ON observations(ticker, observed_at)`,
     `CREATE TABLE IF NOT EXISTS resolutions (observation_id TEXT PRIMARY KEY, resolved_at TEXT NOT NULL, result TEXT, settlement_value REAL, hypothetical_pnl REAL, estimated_fees REAL, calibration_error REAL, liquidity_note TEXT, reconciliation_json TEXT)`,
     `CREATE TABLE IF NOT EXISTS signal_state (domain TEXT NOT NULL, ticker TEXT NOT NULL, first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL, sample_count INTEGER NOT NULL DEFAULT 0, first_score REAL, last_score REAL, recent_peak REAL, recent_trough REAL, threshold_first_at TEXT, threshold_continuous_since TEXT, last_source_at TEXT, updated_at TEXT NOT NULL, PRIMARY KEY(domain,ticker))`,
-    `CREATE INDEX IF NOT EXISTS idx_signal_state_updated ON signal_state(domain,updated_at)`
+    `CREATE INDEX IF NOT EXISTS idx_signal_state_updated ON signal_state(domain,updated_at)`,
+    `CREATE TABLE IF NOT EXISTS provider_cache (cache_key TEXT PRIMARY KEY, provider TEXT NOT NULL, payload_json TEXT NOT NULL, fetched_at TEXT NOT NULL, updated_at TEXT NOT NULL)`
   ];
   await db.batch(statements.map(sql=>db.prepare(sql)));
   return {ok:true,status:"D1_SCHEMA_READY"};
@@ -63,4 +64,25 @@ export async function upsertSignalState(db,{domain,ticker,observedAt,score,sourc
   const persistenceSec=continuous?Math.max(0,(Date.parse(observedAt)-Date.parse(continuous))/1000):0;
   const freshnessSec=sourceAt?Math.max(0,(Date.parse(observedAt)-Date.parse(sourceAt))/1000):null;
   return {ok:true,status:"SIGNAL_STATE_UPDATED",trajectory:{priorScore:prev?.last_score??null,currentScore:valid?n:null,delta:valid&&prev?.last_score!=null?n-Number(prev.last_score):null,peak,distanceFromPeak:valid&&peak!=null?peak-n:null,trough},persistence:{threshold,continuousSince:continuous,seconds:persistenceSec},signalAgeSeconds:ageSec,freshnessSeconds:freshnessSec,sampleCount:Number(prev?.sample_count||0)+1};
+}
+
+
+export async function getProviderCache(db,cacheKey,{maxAgeSeconds=300}={}) {
+  if(!db||!cacheKey) return {ok:false,status:"CACHE_UNAVAILABLE",fresh:false,payload:null};
+  await ensureLedgerSchema(db);
+  const row=await db.prepare(`SELECT payload_json,fetched_at FROM provider_cache WHERE cache_key=?`).bind(cacheKey).first();
+  if(!row) return {ok:true,status:"CACHE_MISS",fresh:false,payload:null,fetchedAt:null,ageSeconds:null};
+  let payload=null; try{payload=JSON.parse(row.payload_json);}catch{}
+  const ageSeconds=Math.max(0,(Date.now()-Date.parse(row.fetched_at))/1000);
+  return {ok:true,status:ageSeconds<=maxAgeSeconds?"CACHE_FRESH":"CACHE_STALE",fresh:ageSeconds<=maxAgeSeconds,payload,fetchedAt:row.fetched_at,ageSeconds};
+}
+
+export async function putProviderCache(db,cacheKey,provider,payload,fetchedAt=new Date().toISOString()) {
+  if(!db||!cacheKey||!payload) return {ok:false,status:"CACHE_WRITE_SKIPPED"};
+  await ensureLedgerSchema(db);
+  await db.prepare(`INSERT INTO provider_cache(cache_key,provider,payload_json,fetched_at,updated_at)
+    VALUES(?,?,?,?,?)
+    ON CONFLICT(cache_key) DO UPDATE SET provider=excluded.provider,payload_json=excluded.payload_json,fetched_at=excluded.fetched_at,updated_at=excluded.updated_at`)
+    .bind(cacheKey,provider,JSON.stringify(payload),fetchedAt,new Date().toISOString()).run();
+  return {ok:true,status:"CACHE_UPDATED",fetchedAt};
 }
