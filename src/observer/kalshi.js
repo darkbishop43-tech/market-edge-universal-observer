@@ -93,8 +93,45 @@ export async function discoverWeatherSeriesCatalog() {
 export async function discoverSeriesMarkets(seriesTicker) {
   const ticker=String(seriesTicker||"").trim().toUpperCase();
   if(!/^[A-Z0-9_-]{2,40}$/.test(ticker)) return {ok:false,error:"INVALID_SERIES_TICKER",markets:[]};
-  const mr=await getJson("/markets",{series_ticker:ticker,limit:100,mve_filter:"exclude"});
-  if(!mr.ok) return {ok:false,seriesTicker:ticker,httpStatus:mr.httpStatus,retryAfter:mr.retryAfter,error:mr.httpStatus===429?"KALSHI_SERIES_MARKETS_RATE_LIMITED":"KALSHI_SERIES_MARKETS_FAILED",markets:[]};
-  const markets=Array.isArray(mr.data?.markets)?mr.data.markets:[];
-  return {ok:true,seriesTicker:ticker,httpStatus:mr.httpStatus,markets:markets.map(m=>({ticker:m.ticker||null,title:m.title||null,subtitle:m.subtitle||null,status:m.status||null,openTime:m.open_time||null,closeTime:m.close_time||null,yesAsk:m.yes_ask??null,yesBid:m.yes_bid??null,noAsk:m.no_ask??null,noBid:m.no_bid??null,rulesPrimary:m.rules_primary||null}))};
+
+  // Use the same authoritative Weather hierarchy as the seed path:
+  // series -> open events -> nested markets. This avoids a separate direct
+  // series /markets lookup that can be rate-limited independently.
+  let cursor=null, pages=0;
+  const markets=[];
+  do {
+    const er=await getJson("/events",{series_ticker:ticker,status:"open",with_nested_markets:"true",limit:100,cursor:cursor||undefined});
+    pages++;
+    if(!er.ok) return {
+      ok:false,
+      seriesTicker:ticker,
+      httpStatus:er.httpStatus,
+      retryAfter:er.retryAfter,
+      error:er.httpStatus===429?"KALSHI_SERIES_EVENTS_RATE_LIMITED":"KALSHI_SERIES_EVENTS_FAILED",
+      markets:[]
+    };
+    for(const event of (Array.isArray(er.data?.events)?er.data.events:[])) {
+      for(const m of (Array.isArray(event?.markets)?event.markets:[])) {
+        if(!m?.ticker || markets.some(x=>x.ticker===m.ticker)) continue;
+        markets.push({
+          eventTicker:event?.event_ticker||event?.ticker||null,
+          eventTitle:event?.title||null,
+          ticker:m.ticker||null,
+          title:m.title||null,
+          subtitle:m.subtitle||null,
+          status:m.status||null,
+          openTime:m.open_time||null,
+          closeTime:m.close_time||null,
+          yesAsk:m.yes_ask??null,
+          yesBid:m.yes_bid??null,
+          noAsk:m.no_ask??null,
+          noBid:m.no_bid??null,
+          rulesPrimary:m.rules_primary||null
+        });
+      }
+    }
+    cursor=er.data?.cursor||null;
+  } while(cursor && pages<3);
+
+  return {ok:true,seriesTicker:ticker,httpStatus:200,source:"KALSHI_SERIES_EVENTS",variant:"open_events_nested_markets",markets};
 }
