@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.4.5";
+const VERSION = "0.4.7";
 import { runObservationCycle } from "./observer/run.js";
 
 const MODE = "OBSERVATION_ONLY";
@@ -70,6 +70,14 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/") return dashboard();
     if (url.pathname === "/health") {
+      let d1={bound:Boolean(env?.DB),schemaReady:false,status:env?.DB?"BOUND_NOT_CHECKED":"D1_NOT_BOUND"};
+      if(env?.DB){
+        try{
+          const row=await env.DB.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('observation_cycles','observations','resolutions')").first();
+          const n=Number(row?.n||0);
+          d1={bound:true,schemaReady:n===3,status:n===3?"D1_SCHEMA_READY":"D1_BOUND_SCHEMA_PENDING",expectedTables:3,presentTables:n};
+        }catch(error){d1={bound:true,schemaReady:false,status:"D1_HEALTH_READ_FAILED",error:String(error?.message||error).slice(0,120)};}
+      }
       return json({
         ok: true,
         app: APP,
@@ -77,6 +85,7 @@ export default {
         mode: MODE,
         tradingCapability: false,
         engines: ENGINES,
+        d1,
       });
     }
     if (url.pathname === "/observe") return json(await observe(env));
