@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.5.4";
+const VERSION = "0.5.5";
 import { runObservationCycle } from "./observer/run.js";
 
 const MODE = "OBSERVATION_ONLY";
@@ -46,12 +46,11 @@ button{background:#1f6feb;color:white;border:0;border-radius:9px;padding:10px 14
 <div class="card"><div class="muted">Ledger</div><div class="big" id="ledger">D1 READY</div></div>
 </div>
 <div class="card"><strong>Engine registry</strong><table><tr><th>Engine</th><th>State</th><th>Execution</th></tr><tr><td>Weather V0</td><td class="good">ACTIVE RESEARCH</td><td>NO</td></tr><tr><td>Economics V0</td><td class="warn">RESERVED</td><td>NO</td></tr></table></div>
-<div class="card"><strong>🌦️ Weather Research — first evidence cycle</strong><p class="muted">Public Kalshi discovery → Weather routing → NWS evidence → experimental probability → isolated D1 evidence ledger.</p><p class="muted" id="status">Ready for a read-only Weather observation. No orders, bankroll, or trading credentials exist here.</p><a id="run" class="weatherRun" href="/weather-dashboard">View Weather contracts</a><div style="overflow:auto"><table><thead><tr><th>Contract</th><th>Prediction</th><th>Probability</th><th>Evidence</th><th>Reason</th></tr></thead><tbody id="rows"></tbody></table></div></div>
+<div class="card"><strong>🌦️ Weather Research</strong><p class="muted">Kalshi Weather series catalog · observation-only evidence research.</p><p class="muted">Live individual market lookup is provider-rate-limited and remains outside this pause checkpoint.</p><a id="run" class="weatherRun" href="/weather-dashboard">View Weather contracts</a></div>
 <div class="card"><strong>Protected separation</strong><p>🔒 Baseline Real untouched &nbsp; 🔒 Payne untouched &nbsp; 🔒 NFE Reasoning untouched</p><p class="muted">No bankroll · no order endpoint · no trading credentials.</p></div>
-<script>
-function esc(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
-</script><small class="muted">Version ${VERSION} · <code>/health</code> · <code>/observe</code></small></main></body></html>`,{headers:{"content-type":"text/html; charset=utf-8"}});
+<small class="muted">Version ${VERSION} · <code>/health</code> · <code>/weather-dashboard</code> · <code>/observe</code></small></main></body></html>`,{headers:{"content-type":"text/html; charset=utf-8"}});
 }
+
 async function observe(env) {
   return runObservationCycle(env);
 }
@@ -69,24 +68,20 @@ export default {
           d1={bound:true,schemaReady:n===3,status:n===3?"D1_SCHEMA_READY":"D1_BOUND_SCHEMA_PENDING",expectedTables:3,presentTables:n};
         }catch(error){d1={bound:true,schemaReady:false,status:"D1_HEALTH_READ_FAILED",error:String(error?.message||error).slice(0,120)};}
       }
-      return json({
-        ok: true,
-        app: APP,
-        version: VERSION,
-        mode: MODE,
-        tradingCapability: false,
-        engines: ENGINES,
-        d1,
-      });
+      return json({ok:true,app:APP,version:VERSION,mode:MODE,tradingCapability:false,engines:ENGINES,d1});
     }
-    if (url.pathname === "/weather-catalog") { const m=await import("./observer/kalshi.js"); return json(await m.discoverWeatherSeriesCatalog()); }\n    if (url.pathname === "/weather-dashboard") {
+    if (url.pathname === "/weather-catalog") {
+      const m=await import("./observer/kalshi.js");
+      return json(await m.discoverWeatherSeriesCatalog());
+    }
+    if (url.pathname === "/weather-dashboard") {
       const m=await import("./observer/kalshi.js");
       const d=await m.discoverWeatherSeriesCatalog();
       const escHtml=v=>String(v??"").replace(/[&<>"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
       const rows=(d.weatherSeries||[]).map(x=>'<tr><td>'+escHtml(x.title||x.ticker)+'</td><td><code>'+escHtml(x.ticker)+'</code></td><td><span class="ok">CATALOGED</span></td><td>NO</td></tr>').join("");
-      return new Response('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Weather Contract Catalog</title><style>body{font-family:system-ui;background:#071321;color:#eef6ff;max-width:1100px;margin:24px auto;padding:16px}a{color:#7eb5ff}.pill{display:inline-block;padding:6px 10px;border-radius:20px;background:#123d2b;color:#7df0ad;font-weight:700}table{width:100%;border-collapse:collapse;margin-top:18px;background:#0d1e31}th,td{text-align:left;padding:11px;border-bottom:1px solid #28415c}th{color:#9fc7f4}.ok{color:#75efad}small{color:#91afd0}code{color:#d8eaff}</style></head><body><a href="/">← Universal Observer</a><h1>🌦️ Weather Contract Catalog</h1><p class="pill">OBSERVATION ONLY · ZERO ORDER CAPABILITY</p><p><b>'+escHtml(d.seriesExamined||0)+'</b> Kalshi series examined · <b>'+escHtml((d.weatherSeries||[]).length)+'</b> Weather research series displayed</p><p><small>These are verified Weather contract families from the Kalshi series catalog. Individual live market details remain provider-rate-limited and are not represented as available until verified.</small></p><table><thead><tr><th>Weather contract family</th><th>Ticker</th><th>Research state</th><th>Execution</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4">No Weather series returned.</td></tr>')+'</tbody></table><p><small>Universal Observer v'+VERSION+' · Baseline Real untouched.</small></p></body></html>',{headers:{"content-type":"text/html; charset=utf-8"}});
+      return new Response('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Weather Contract Catalog</title><style>body{font-family:system-ui;background:#071321;color:#eef6ff;max-width:1100px;margin:24px auto;padding:16px}a{color:#7eb5ff}.pill{display:inline-block;padding:6px 10px;border-radius:20px;background:#123d2b;color:#7df0ad;font-weight:700}table{width:100%;border-collapse:collapse;margin-top:18px;background:#0d1e31}th,td{text-align:left;padding:11px;border-bottom:1px solid #28415c}th{color:#9fc7f4}.ok{color:#75efad}small{color:#91afd0}code{color:#d8eaff}</style></head><body><a href="/">← Universal Observer</a><h1>🌦️ Weather Contract Catalog</h1><p class="pill">OBSERVATION ONLY · ZERO ORDER CAPABILITY</p><p><b>'+escHtml(d.seriesExamined||0)+'</b> Kalshi series examined · <b>'+escHtml((d.weatherSeries||[]).length)+'</b> Weather research series displayed</p><p><small>Verified Weather contract families from the Kalshi series catalog. Individual live market details remain provider-rate-limited and are not represented as available until verified.</small></p><table><thead><tr><th>Weather contract family</th><th>Ticker</th><th>Research state</th><th>Execution</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4">No Weather series returned.</td></tr>')+'</tbody></table><p><small>Universal Observer v'+VERSION+' · Baseline Real untouched.</small></p></body></html>',{headers:{"content-type":"text/html; charset=utf-8"}});
     }
-\n    if (url.pathname === "/observe") return json(await observe(env));
+    if (url.pathname === "/observe") return json(await observe(env));
     return json({ ok: false, error: "NOT_FOUND" }, 404);
   },
 
