@@ -1,7 +1,7 @@
 import { discoverOpenMarkets } from "./kalshi.js";
 import { classifyMarket } from "./classify.js";
 import { observeWeatherMarket } from "../engines/weather-v0.js";
-import { persistCycle } from "../ledger/d1.js";
+import { persistCycle, upsertSignalState } from "../ledger/d1.js";
 
 function intSetting(env,key,fallback,min,max){
   const n=Number(env?.[key]);
@@ -32,7 +32,12 @@ export async function runObservationCycle(env={}) {
   weatherCandidates.sort((a,b)=>String(a.market.close_time||"").localeCompare(String(b.market.close_time||"")));
   const selected=weatherCandidates.slice(0,weatherPerCycle);
   const weatherObservations=[];
-  for(const item of selected) weatherObservations.push(await observeWeatherMarket(item.market,item.classification,observedAt));
+  for(const item of selected) {
+    const o=await observeWeatherMarket(item.market,item.classification,observedAt);
+    const score=o.probability ?? (o.market?.yesAsk!=null ? Number(o.market.yesAsk)/100 : null);
+    o.longitudinal=await upsertSignalState(env.DB,{domain:"weather",ticker:o.market?.ticker||item.market?.ticker,observedAt,score,sourceAt:o.evidence?.retrievedAt||observedAt,threshold:0.5});
+    weatherObservations.push(o);
+  }
 
   const cycle={ok:true,observedAt,mode:"OBSERVATION_ONLY",tradingCapability:false,
     discovery:{ok:true,source:discovery.source,httpStatus:discovery.httpStatus,latencyMs:discovery.latencyMs,cursorPresent:Boolean(discovery.cursor)},
