@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.5.0";
+const VERSION = "0.5.1";
 import { runObservationCycle } from "./observer/run.js";
 
 const MODE = "OBSERVATION_ONLY";
