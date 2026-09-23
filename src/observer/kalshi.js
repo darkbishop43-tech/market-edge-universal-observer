@@ -43,8 +43,11 @@ function weatherSeries(series){
   const text=seriesText(series);
   return WEATHER_PATTERNS.some(pattern=>pattern.test(text)) && !NON_WEATHER_PATTERNS.some(pattern=>pattern.test(text));
 }
+const US_RESEARCH_CITY=/\b(new york|nyc|chicago|miami|austin|dallas|houston|los angeles|san francisco|seattle|denver|boston|philadelphia|atlanta|phoenix|charlotte)\b/i;
 function selectWeatherSeries(allSeries, limit){
-  return allSeries.filter(weatherSeries).filter(s=>!/(tsunami|natural disaster)/i.test(seriesText(s))).slice(0,limit);
+  const weather=allSeries.filter(weatherSeries).filter(s=>!/(tsunami|natural disaster)/i.test(seriesText(s)));
+  const researchSuitable=weather.filter(s=>US_RESEARCH_CITY.test(seriesText(s)) && /temp|temperature/i.test(seriesText(s)));
+  return (researchSuitable.length?researchSuitable:weather).slice(0,limit);
 }
 
 export async function discoverOpenMarkets({limit=500}={}) {
