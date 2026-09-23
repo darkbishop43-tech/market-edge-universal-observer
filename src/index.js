@@ -45,7 +45,7 @@ async function dashboard(env) {
   const seedContracts=await seededWeatherContracts(env);
   const seedSeries=(d.weatherSeries||[]).slice(0,2);
   const rows=seedSeries.map(x=>'<tr><td><a class="seriesLink" data-disabled="/weather-series?ticker='+encodeURIComponent(x.ticker)+'">'+escHtml(x.title||x.ticker)+'</a></td><td><code>'+escHtml(x.ticker)+'</code></td><td><span class="ok">NWS-SUITABLE SEED</span></td><td>NO</td></tr>').join("");
-  const contractRows=(seedContracts.markets||[]).map(x=>'<tr><td>'+escHtml(x.title||x.ticker)+'</td><td><code>'+escHtml(x.ticker)+'</code></td><td>'+escHtml(x.status||"—")+'</td><td>'+escHtml(x.yes_bid_dollars??"—")+' / '+escHtml(x.yes_ask_dollars??"—")+'</td><td>'+escHtml(x.no_bid_dollars??"—")+' / '+escHtml(x.no_ask_dollars??"—")+'</td><td>'+escHtml(x.close_time||"—")+'</td></tr>').join("");
+  const contractRows=(seedContracts.markets||[]).map(x=>'<tr><td>'+escHtml(x.title||x.ticker)+'</td><td><code>'+escHtml(x.ticker)+'</code></td><td>'+escHtml(x.status||"—")+'</td><td>'+escHtml(x.yes_bid_dollars??x.yes_bid??"—")+' / '+escHtml(x.yes_ask_dollars??x.yes_ask??"—")+'</td><td>'+escHtml(x.no_bid_dollars??x.no_bid??"—")+' / '+escHtml(x.no_ask_dollars??x.no_ask??"—")+'</td><td>'+escHtml(x.close_time||"—")+'</td></tr>').join("");
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${APP}</title><style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#07111f;color:#eef6ff;margin:0}main{max-width:1180px;margin:auto;padding:24px}
