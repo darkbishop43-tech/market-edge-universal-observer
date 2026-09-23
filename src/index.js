@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.5.18";
+const VERSION = "0.5.19";
 import { runObservationCycle } from "./observer/run.js";
 import { getProviderCache, putProviderCache } from "./ledger/d1.js";
 
@@ -29,12 +29,13 @@ async function weatherCatalog(env) {
   return {...live,providerState:"PROVIDER_UNAVAILABLE_NO_CACHE",cacheAgeSeconds:null};
 }
 
-async function seededWeatherContracts(env){
-  const cacheKey="kalshi:seeded-weather-contracts";
+async function seededWeatherContracts(env, seedSeries=[]){
+  const seriesTickers=(seedSeries||[]).map(x=>x?.ticker).filter(Boolean).slice(0,2);
+  const cacheKey="kalshi:seeded-weather-contracts:"+seriesTickers.join(",");
   const cached=await getProviderCache(env?.DB,cacheKey,{maxAgeSeconds:300});
   if(cached.fresh&&cached.payload)return {...cached.payload,providerState:"D1_FRESH_CACHE",cacheAgeSeconds:cached.ageSeconds};
   const m=await import("./observer/kalshi.js");
-  const live=await m.discoverOpenMarkets({limit:2});
+  const live=await m.discoverOpenMarkets({limit:2,seriesTickers});
   if(live.ok){const payload={ok:true,markets:(live.markets||[]).slice(0,2),observedAt:new Date().toISOString()};await putProviderCache(env?.DB,cacheKey,"KALSHI",payload,payload.observedAt);return {...payload,providerState:"LIVE_VERIFIED",cacheAgeSeconds:0};}
   if(cached.payload)return {...cached.payload,ok:true,providerState:"D1_STALE_FALLBACK",cacheAgeSeconds:cached.ageSeconds,providerBoundary:live.error||"PROVIDER_UNAVAILABLE"};
   return {ok:false,markets:[],providerState:"PROVIDER_UNAVAILABLE_NO_CACHE",providerBoundary:live.error||"PROVIDER_UNAVAILABLE"};
@@ -42,8 +43,8 @@ async function seededWeatherContracts(env){
 
 async function dashboard(env) {
   const d=await weatherCatalog(env);
-  const seedContracts=await seededWeatherContracts(env);
   const seedSeries=(d.weatherSeries||[]).slice(0,2);
+  const seedContracts=await seededWeatherContracts(env,seedSeries);
   const rows=seedSeries.map(x=>'<tr><td><a class="seriesLink" data-disabled="/weather-series?ticker='+encodeURIComponent(x.ticker)+'">'+escHtml(x.title||x.ticker)+'</a></td><td><code>'+escHtml(x.ticker)+'</code></td><td><span class="ok">NWS-SUITABLE SEED</span></td><td>NO</td></tr>').join("");
   const contractRows=(seedContracts.markets||[]).map(x=>'<tr><td>'+escHtml(x.title||x.ticker)+'</td><td><code>'+escHtml(x.ticker)+'</code></td><td>'+escHtml(x.status||"—")+'</td><td>'+escHtml(x.yes_bid_dollars??x.yes_bid??"—")+' / '+escHtml(x.yes_ask_dollars??x.yes_ask??"—")+'</td><td>'+escHtml(x.no_bid_dollars??x.no_bid??"—")+' / '+escHtml(x.no_ask_dollars??x.no_ask??"—")+'</td><td>'+escHtml(x.close_time||"—")+'</td></tr>').join("");
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
