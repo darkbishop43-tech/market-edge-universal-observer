@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.6.3";
+const VERSION = "0.6.4";
 import { runObservationCycle } from "./observer/run.js";
 import { getProviderCache, putProviderCache } from "./ledger/d1.js";
 
@@ -127,9 +127,19 @@ export default {
       const catalog=await economicsCatalog(env);
       const allowed=(catalog.economicsSeries||[]).some(x=>String(x.ticker||"").toUpperCase()===ticker);
       if(!allowed)return json({ok:false,error:"SERIES_NOT_IN_GOVERNED_ECONOMICS_CATALOG",ticker,readOnly:true,tradingCapability:false},404);
-      const m=await import("./observer/kalshi.js");
-      const result=await m.discoverSeriesMarkets(ticker);
-      return json({...result,readOnly:true,tradingCapability:false,baselineRealUntouched:true,weatherUntouched:true});
+      return json({
+        ok:false,
+        seriesTicker:ticker,
+        providerState:"REST_DRILLDOWN_HELD",
+        error:"KALSHI_SHARED_REST_RATE_BOUNDARY",
+        evidence:"HTTP 429 reproduced on series→events drilldown in both Weather and Economics.",
+        nextArchitecture:"STREAM_OR_LIFECYCLE_INGEST",
+        message:"Direct REST drilldown is intentionally held to avoid repeating a proven provider rate-limit boundary.",
+        readOnly:true,
+        tradingCapability:false,
+        baselineRealUntouched:true,
+        weatherUntouched:true
+      },503);
     }
     if (url.pathname === "/economics-dashboard" || url.pathname === "/economics") return economicsDashboard(env);
     if (url.pathname === "/weather-dashboard") return dashboard(env);
