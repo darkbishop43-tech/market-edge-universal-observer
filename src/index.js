@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.5.13";
+const VERSION = "0.5.14";
 import { runObservationCycle } from "./observer/run.js";
 import { getProviderCache, putProviderCache } from "./ledger/d1.js";
 
@@ -32,7 +32,7 @@ async function weatherCatalog(env) {
 async function dashboard(env) {
   const d=await weatherCatalog(env);
   const seedSeries=(d.weatherSeries||[]).slice(0,2);
-  const rows=seedSeries.map(x=>'<tr><td><a class="seriesLink" data-disabled="/weather-series?ticker='+encodeURIComponent(x.ticker)+'">'+escHtml(x.title||x.ticker)+'</a></td><td><code>'+escHtml(x.ticker)+'</code></td><td><span class="ok">CATALOGED</span></td><td>NO</td></tr>').join("");
+  const rows=seedSeries.map(x=>'<tr><td><a class="seriesLink" data-disabled="/weather-series?ticker='+encodeURIComponent(x.ticker)+'">'+escHtml(x.title||x.ticker)+'</a></td><td><code>'+escHtml(x.ticker)+'</code></td><td><span class="ok">NWS-SUITABLE SEED</span></td><td>NO</td></tr>').join("");
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${APP}</title><style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#07111f;color:#eef6ff;margin:0}main{max-width:1180px;margin:auto;padding:24px}
@@ -45,7 +45,7 @@ h1{margin:0}.sub,.muted,small{color:#91a8c4}.badge{display:inline-block;padding:
 <div class="grid">
 <div class="card"><div class="muted">Seed candidates displayed</div><div class="big">${escHtml(seedSeries.length)}</div></div>
 <div class="card"><div class="muted">Weather seeded</div><div class="big">${escHtml(seedSeries.length)}</div></div>
-<div class="card"><div class="muted">Predictions</div><div class="big">—</div></div>
+<div class="card"><div class="muted">Research evidence</div><div class="big">SEEDING</div></div>
 <div class="card"><div class="muted">Ledger</div><div class="big">D1 READY</div></div><div class="card"><div class="muted">Provider state</div><div class="big">${escHtml(d.providerState||"UNKNOWN")}</div><small>${d.cacheAgeSeconds!=null?"cache age "+escHtml(Math.round(d.cacheAgeSeconds))+"s":"no cached age"}</small></div>
 </div>
 <div class="card"><strong>Engine registry</strong><table><tr><th>Engine</th><th>State</th><th>Execution</th></tr><tr><td>Weather V0</td><td class="good">ACTIVE RESEARCH</td><td>NO</td></tr><tr><td>Economics V0</td><td class="warn">RESERVED</td><td>NO</td></tr></table></div>
