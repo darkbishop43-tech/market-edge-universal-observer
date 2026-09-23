@@ -13,3 +13,15 @@ database_name = "market-edge-universal-observer-ledger"
 database_id = "af04009f-010f-4020-8d66-df8fcba1b823"
 
 # A single Cron trigger will be enabled during Cloudflare activation.
+
+
+[[durable_objects.bindings]]
+name = "UMEO_STREAM"
+class_name = "KalshiStreamObserver"
+
+[[migrations]]
+tag = "v0_7_0_stream_do"
+new_sqlite_classes = ["KalshiStreamObserver"]
+
+[triggers]
+crons = ["*/5 * * * *"]
