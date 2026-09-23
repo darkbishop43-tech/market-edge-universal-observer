@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.5.12";
+const VERSION = "0.5.13";
 import { runObservationCycle } from "./observer/run.js";
 import { getProviderCache, putProviderCache } from "./ledger/d1.js";
 
@@ -43,7 +43,7 @@ h1{margin:0}.sub,.muted,small{color:#91a8c4}.badge{display:inline-block;padding:
 <h1>🔭 MARKET EDGE — UNIVERSAL OBSERVER</h1><p class="sub">Neutral discovery · routing · evidence · reconciliation control plane</p>
 <p><span class="badge">OBSERVATION ONLY · ZERO ORDER CAPABILITY</span></p>
 <div class="grid">
-<div class="card"><div class="muted">Kalshi series examined</div><div class="big">${escHtml(d.seriesExamined||0)}</div></div>
+<div class="card"><div class="muted">Seed candidates displayed</div><div class="big">${escHtml(seedSeries.length)}</div></div>
 <div class="card"><div class="muted">Weather seeded</div><div class="big">${escHtml(seedSeries.length)}</div></div>
 <div class="card"><div class="muted">Predictions</div><div class="big">—</div></div>
 <div class="card"><div class="muted">Ledger</div><div class="big">D1 READY</div></div><div class="card"><div class="muted">Provider state</div><div class="big">${escHtml(d.providerState||"UNKNOWN")}</div><small>${d.cacheAgeSeconds!=null?"cache age "+escHtml(Math.round(d.cacheAgeSeconds))+"s":"no cached age"}</small></div>
