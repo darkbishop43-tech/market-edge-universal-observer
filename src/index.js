@@ -1,5 +1,5 @@
 const APP = "MARKET EDGE — UNIVERSAL OBSERVER";
-const VERSION = "0.4.7";
+const VERSION = "0.4.8";
 import { runObservationCycle } from "./observer/run.js";
 
 const MODE = "OBSERVATION_ONLY";
@@ -46,7 +46,7 @@ button{background:#1f6feb;color:white;border:0;border-radius:9px;padding:10px 14
 <div class="card"><div class="muted">Ledger</div><div class="big" id="ledger">D1 READY</div></div>
 </div>
 <div class="card"><strong>Engine registry</strong><table><tr><th>Engine</th><th>State</th><th>Execution</th></tr><tr><td>Weather V0</td><td class="good">ACTIVE RESEARCH</td><td>NO</td></tr><tr><td>Economics V0</td><td class="warn">RESERVED</td><td>NO</td></tr></table></div>
-<div class="card"><strong>Latest observation preview</strong><p class="muted" id="status">Not run in this browser yet.</p><button id="run" type="button" onclick="runObservation()">Run read-only observation</button><div style="overflow:auto"><table><thead><tr><th>Contract</th><th>Prediction</th><th>Probability</th><th>Evidence</th><th>Reason</th></tr></thead><tbody id="rows"></tbody></table></div></div>
+<div class="card"><strong>🌦️ Weather Research — first evidence cycle</strong><p class="muted">Public Kalshi discovery → Weather routing → NWS evidence → experimental probability → isolated D1 evidence ledger.</p><p class="muted" id="status">Ready for a read-only Weather observation. No orders, bankroll, or trading credentials exist here.</p><button id="run" type="button" onclick="runObservation()">Run Weather observation</button><div style="overflow:auto"><table><thead><tr><th>Contract</th><th>Prediction</th><th>Probability</th><th>Evidence</th><th>Reason</th></tr></thead><tbody id="rows"></tbody></table></div></div>
 <div class="card"><strong>Protected separation</strong><p>🔒 Baseline Real untouched &nbsp; 🔒 Payne untouched &nbsp; 🔒 NFE Reasoning untouched</p><p class="muted">No bankroll · no order endpoint · no trading credentials.</p></div>
 <script>
 async function runObservation(){
@@ -54,7 +54,7 @@ async function runObservation(){
  try{const r=await fetch("/observe");const d=await r.json();document.getElementById("discovered").textContent=d.counts?.discovered??0;document.getElementById("weather").textContent=d.counts?.weather??0;
  const obs=d.weatherObservations||[];document.getElementById("predictions").textContent=obs.filter(x=>x.probability!=null).length;
  document.getElementById("ledger").textContent=d.persistence?.status||"NOT BOUND";
- document.getElementById("status").textContent="Observed "+(d.observedAt||"")+" · deferred "+(d.limits?.weatherDeferred??0)+" weather candidates";
+ document.getElementById("status").textContent="Observed "+(d.observedAt||"")+" · D1 "+(d.persistence?.status||"UNKNOWN")+" · wrote "+(d.persistence?.writes??0)+" evidence rows · deferred "+(d.limits?.weatherDeferred??0)+" weather candidates";
  document.getElementById("rows").innerHTML=obs.slice(0,24).map(x=>"<tr><td>"+esc(x.market?.title||x.market?.ticker||"")+"</td><td>"+esc(x.prediction||"NO PREDICTION")+"</td><td>"+(x.probability==null?"—":Math.round(x.probability*100)+"%")+"</td><td>"+esc(x.evidence?.source||"—")+"</td><td>"+esc(x.failureReason||x.model?.modelStatus||"—")+"</td></tr>").join("");
  }catch(e){document.getElementById("status").textContent="Observation failed: "+e.message}finally{b.disabled=false}}
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
