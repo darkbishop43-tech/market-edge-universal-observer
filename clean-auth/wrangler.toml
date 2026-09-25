@@ -1,0 +1,7 @@
+name = "umeo-auth-clean-v1"
+main = "src/index.js"
+compatibility_date = "2026-09-25"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+UMEO_CLEAN_SCOPE = "read"
