@@ -1,0 +1,2 @@
+import test from "node:test";import assert from "node:assert/strict";import {makeFixture,inspectPem,signPss,normalizePem} from "../src/crypto.js";
+test("PKCS8 fixture parse/sign/verify and newline normalization",()=>{const pem=makeFixture();assert.equal(inspectPem(pem).keyType,"rsa");assert.equal(signPss(pem,"proof").localVerified,true);const crlf=pem.replace(/\n/g,"\r\n");assert.equal(inspectPem(crlf).keyType,"rsa");const escaped=pem.trim().replace(/\n/g,"\\n");assert.equal(inspectPem(escaped).keyType,"rsa");assert.match(normalizePem(pem),/BEGIN PRIVATE KEY/);});
