@@ -1,0 +1,30 @@
+name: UMEO Clean Auth Phase 1
+on:
+  push:
+    branches: [umeo-auth-clean-v1]
+    paths: ['clean-auth/**']
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clean-auth
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - name: Static zero-execution boundary
+        run: |
+          set -euo pipefail
+          grep -q 'UMEO_CLEAN_SCOPE = "read"' wrangler.toml
+          grep -q 'tradingCapability:false' src/index.js
+          grep -q 'orderCapability:false' src/index.js
+          grep -q 'cancellationCapability:false' src/index.js
+          grep -q 'transferCapability:false' src/index.js
+          grep -q 'bankrollCapability:false' src/index.js
+          grep -q 'baselineBindingPresent:false' src/index.js
+          ! grep -R 'KALSHI_OBSERVER_' src wrangler.toml
+          ! grep -R 'BASELINE' src wrangler.toml
