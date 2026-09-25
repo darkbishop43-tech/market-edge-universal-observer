@@ -36,11 +36,11 @@ function signKalshi(privateKeyPem, text){
   // accepts the PEM key material directly; passing its PrivateKeyObject through
   // options.key fails in the Workers runtime even though PEM parsing succeeds.
   const parsedKey = createPrivateKey(privateKeyPem);
-  const publicKey = createPublicKey(parsedKey);
+  const publicKeyPem = createPublicKey(parsedKey).export({type:"spki",format:"pem"});
   const data = Buffer.from(text, "utf8");
   if(parsedKey.asymmetricKeyType === "ed25519"){
     const signature = sign(null, data, privateKeyPem);
-    const localVerified = verify(null, data, publicKey, signature);
+    const localVerified = verify(null, data, publicKeyPem, signature);
     return {algorithm:"Ed25519", keyType:"ed25519", localVerified, signature:base64(signature)};
   }
   if(parsedKey.asymmetricKeyType === "rsa" || parsedKey.asymmetricKeyType === "rsa-pss"){
@@ -51,7 +51,7 @@ function signKalshi(privateKeyPem, text){
     };
     const signature = sign("sha256", data, options);
     const localVerified = verify("sha256", data, {
-      key: publicKey,
+      key: publicKeyPem,
       padding: constants.RSA_PKCS1_PSS_PADDING,
       saltLength: 32
     }, signature);
