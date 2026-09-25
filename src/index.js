@@ -195,6 +195,14 @@ async function runStreamFixture(env){
   return await response.json();
 }
 
+async function runAuthDiagnostic(env){
+  if(!env?.UMEO_STREAM) return {ok:false,test:"KALSHI_READ_ONLY_AUTH_DIFFERENTIAL",error:"DURABLE_OBJECT_BINDING_MISSING",tradingCapability:false};
+  const id=env.UMEO_STREAM.idFromName("kalshi-primary");
+  const stub=env.UMEO_STREAM.get(id);
+  const response=await stub.fetch("https://umeo.internal/auth-diagnostic",{method:"POST"});
+  return response.json();
+}
+
 async function ensureStream(env){
   const stub=streamStub(env);
   if(!stub) return {ok:false,state:"STREAM_BINDING_MISSING"};
@@ -248,6 +256,7 @@ export default {
       weatherUntouched:true
     });
     if (url.pathname === "/stream-state") return json(await getStreamState(env,{ensure:false}));
+    if (url.pathname === "/stream-auth-diagnostic") return json(await runAuthDiagnostic(env));
     if (url.pathname === "/stream-acceptance") return json(await streamAcceptance(env));
     if (url.pathname === "/stream-fixture-test") return json(await runStreamFixture(env));
     if (url.pathname === "/provider-architecture") return json({
