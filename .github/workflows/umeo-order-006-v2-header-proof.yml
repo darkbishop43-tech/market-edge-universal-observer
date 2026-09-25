@@ -1,0 +1,25 @@
+name: UMEO Order 006 v2 Header Isolation Proof
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/umeo-order-006-v2-header-proof.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Capture fresh production auth surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://market-edge-universal-observer.darkbishop43.workers.dev"
+          for path in stream-state stream-auth-diagnostic stream-acceptance; do
+            echo "===== $path ====="
+            curl -sS "$base/$path"
+            echo
+          done
