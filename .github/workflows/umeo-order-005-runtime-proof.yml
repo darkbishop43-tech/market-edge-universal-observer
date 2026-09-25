@@ -1,0 +1,86 @@
+name: UMEO Order 005 Stream Acceptance Proof
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/umeo-order-005-runtime-proof.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll production stream acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://market-edge-universal-observer.darkbishop43.workers.dev"
+          rm -f /tmp/last.json
+          for i in $(seq 1 24); do
+            curl -fsS "$base/stream-acceptance" > /tmp/last.json
+            python - <<'PY'
+          import json
+          d=json.load(open('/tmp/last.json'))
+          print(json.dumps({
+            "result":d.get("result"),
+            "credential":d.get("credential"),
+            "connection":d.get("connection"),
+            "lastGenuineProviderMessage":d.get("lastGenuineProviderMessage"),
+            "persistence":d.get("persistence"),
+            "tradingCapability":d.get("tradingCapability"),
+            "orderCapability":d.get("orderCapability"),
+            "cancellationCapability":d.get("cancellationCapability"),
+            "transferCapability":d.get("transferCapability"),
+            "bankrollCapability":d.get("bankrollCapability"),
+            "baselineBindingPresent":d.get("baselineBindingPresent"),
+            "weatherUntouched":d.get("weatherUntouched"),
+            "economicsReadOnly":d.get("economicsReadOnly"),
+          }, indent=2))
+          PY
+            if python - <<'PY'
+          import json,sys
+          d=json.load(open('/tmp/last.json'))
+          c=d.get('connection') or {}
+          ok=(
+            d.get('credential',{}).get('present') is True and
+            d.get('credential',{}).get('explicitReadScopeConfigured') is True and
+            c.get('authenticated') is True and
+            (
+              c.get('subscriptionAcknowledged') is True or
+              c.get('lastConnectedAt') is not None or
+              d.get('lastGenuineProviderMessage') is not None
+            )
+          )
+          sys.exit(0 if ok else 1)
+          PY
+            then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Acceptance did not advance within polling window."
+          cat /tmp/last.json
+          exit 1
+
+      - name: Assert read-only safety invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/last.json'))
+          assert d['credential']['configuredScope']=='read', d
+          assert d['credential']['writeScopesConfigured'] is False, d
+          assert d['tradingCapability'] is False, d
+          assert d['orderCapability'] is False, d
+          assert d['cancellationCapability'] is False, d
+          assert d['transferCapability'] is False, d
+          assert d['bankrollCapability'] is False, d
+          assert d['baselineBindingPresent'] is False, d
+          assert d['weatherUntouched'] is True, d
+          assert d['economicsReadOnly'] is True, d
+          print(json.dumps(d, indent=2))
+          PY
