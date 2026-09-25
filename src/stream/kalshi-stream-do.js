@@ -1,4 +1,4 @@
-import { createPrivateKey, sign } from "node:crypto";
+import { createPrivateKey, sign, constants } from "node:crypto";
 import { persistStreamEvidence } from "../ledger/d1.js";
 
 const PROVIDER = "KALSHI";
