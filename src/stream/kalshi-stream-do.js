@@ -32,13 +32,16 @@ function credentialGate(env){
 function base64(buf){ return Buffer.from(buf).toString("base64"); }
 
 function signKalshi(privateKeyPem, text){
-  const key = createPrivateKey(privateKeyPem);
-  if(key.asymmetricKeyType === "ed25519"){
-    return {algorithm:"Ed25519", signature:base64(sign(null, Buffer.from(text, "utf8"), key))};
+  // Parse only to identify the credential type. Cloudflare's node:crypto sign()
+  // accepts the PEM key material directly; passing its PrivateKeyObject through
+  // options.key currently fails in Workers even though PEM parsing succeeds.
+  const parsedKey = createPrivateKey(privateKeyPem);
+  if(parsedKey.asymmetricKeyType === "ed25519"){
+    return {algorithm:"Ed25519", signature:base64(sign(null, Buffer.from(text, "utf8"), privateKeyPem))};
   }
-  if(key.asymmetricKeyType === "rsa" || key.asymmetricKeyType === "rsa-pss"){
+  if(parsedKey.asymmetricKeyType === "rsa" || parsedKey.asymmetricKeyType === "rsa-pss"){
     const signature = sign("sha256", Buffer.from(text, "utf8"), {
-      key,
+      key: privateKeyPem,
       padding: constants.RSA_PKCS1_PSS_PADDING,
       saltLength: constants.RSA_PSS_SALTLEN_DIGEST
     });
