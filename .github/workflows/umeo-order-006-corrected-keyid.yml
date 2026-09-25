@@ -1,0 +1,66 @@
+name: UMEO Order 006 Corrected KeyID Production Acceptance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/umeo-order-006-corrected-keyid.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  accept:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reconcile corrected Key ID and run full read-only acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://market-edge-universal-observer.darkbishop43.workers.dev"
+
+          echo "===== INITIAL STREAM STATE ====="
+          curl -fsS "$base/stream-state" > /tmp/state0.json
+          cat /tmp/state0.json
+          echo
+
+          echo "===== READ-ONLY REST AUTH ====="
+          curl -fsS "$base/stream-auth-diagnostic" > /tmp/rest.json
+          cat /tmp/rest.json
+          echo
+
+          echo "===== TRIGGER STREAM ====="
+          curl -fsS -X POST "$base/stream-start" > /tmp/start.json || true
+          cat /tmp/start.json || true
+          echo
+
+          sleep 3
+
+          echo "===== STREAM ACCEPTANCE ====="
+          curl -fsS "$base/stream-acceptance" > /tmp/acceptance.json
+          cat /tmp/acceptance.json
+          echo
+
+          echo "===== FINAL STREAM STATE ====="
+          curl -fsS "$base/stream-state" > /tmp/state1.json
+          cat /tmp/state1.json
+          echo
+
+          python - <<'PY'
+          import json
+          r=json.load(open('/tmp/rest.json'))
+          a=json.load(open('/tmp/acceptance.json'))
+          s=json.load(open('/tmp/state1.json'))
+          meta=r.get('credentialMeta') or s.get('credentialMeta') or {}
+          assert meta.get('keyIdHasControlChars') is False, meta
+          assert meta.get('keyIdAsciiVisibleOnly') is True, meta
+          assert r.get('credential',{}).get('configuredScope')=='read', r
+          assert r.get('credential',{}).get('writeScopesConfigured') is False, r
+          for d in (r,a,s):
+            assert d.get('tradingCapability') is False, d
+            assert d.get('orderCapability') is False, d
+            assert d.get('cancellationCapability') is False, d
+            assert d.get('transferCapability') is False, d
+            assert d.get('bankrollCapability') is False, d
+            assert d.get('baselineBindingPresent') is False, d
+          PY
