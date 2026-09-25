@@ -26,6 +26,59 @@ function safeCredentialMeta(env){
     keyIdLooksUuid:/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(trimmed)
   };
 }
+function safePrivateKeyMeta(env){
+  const raw=String(env?.KALSHI_OBSERVER_PRIVATE_KEY ?? "");
+  const trimmed=raw.trim();
+  const literalEscapedNewlines=(trimmed.match(/\\n/g)||[]).length;
+  const crlfCount=(trimmed.match(/\r\n/g)||[]).length;
+  const lfCount=(trimmed.match(/(?<!\r)\n/g)||[]).length;
+  const hasBeginRsa=/-----BEGIN RSA PRIVATE KEY-----/.test(trimmed);
+  const hasEndRsa=/-----END RSA PRIVATE KEY-----/.test(trimmed);
+  const hasBeginPkcs8=/-----BEGIN PRIVATE KEY-----/.test(trimmed);
+  const hasEndPkcs8=/-----END PRIVATE KEY-----/.test(trimmed);
+  const pemType=hasBeginRsa ? "RSA_PRIVATE_KEY" : (hasBeginPkcs8 ? "PRIVATE_KEY" : "UNKNOWN");
+
+  let normalized=trimmed.replace(/\r\n/g,"\n");
+  if(literalEscapedNewlines>0 && !/\n/.test(normalized)){
+    normalized=normalized.replace(/\\n/g,"\n");
+  }
+
+  const lines=normalized.split("\n");
+  const bodyLines=lines.filter(line=>line && !line.startsWith("-----BEGIN ") && !line.startsWith("-----END "));
+  const base64BodyStructurallyPresent=bodyLines.length>0 && bodyLines.every(line=>/^[A-Za-z0-9+/=]+$/.test(line));
+
+  let normalizedParseSucceeded=false;
+  let normalizedParserErrorClass=null;
+  try{
+    createPrivateKey(normalized);
+    normalizedParseSucceeded=true;
+  }catch(error){
+    normalizedParserErrorClass=`${error?.name||"Error"}:${error?.code||"NO_CODE"}`;
+  }
+
+  return {
+    present:raw.length>0,
+    rawLength:raw.length,
+    trimmedLength:trimmed.length,
+    hasLeadingOrTrailingWhitespace:raw!==trimmed,
+    literalEscapedNewlineCount:literalEscapedNewlines,
+    crlfCount,
+    lfCount,
+    lineCount:normalized ? normalized.split("\n").length : 0,
+    hasBeginBoundary:hasBeginRsa||hasBeginPkcs8,
+    hasEndBoundary:hasEndRsa||hasEndPkcs8,
+    pemType,
+    base64BodyStructurallyPresent,
+    normalizationApplied:{
+      outerTrim:raw!==trimmed,
+      crlfToLf:crlfCount>0,
+      literalEscapedNewlinesToLf:literalEscapedNewlines>0 && !/\n/.test(trimmed.replace(/\r\n/g,"\n"))
+    },
+    normalizedParseSucceeded,
+    normalizedParserErrorClass
+  };
+}
+
 function credentialGate(env){
   const keyIdPresent = Boolean(env?.KALSHI_OBSERVER_KEY_ID);
   const privateKeyPresent = Boolean(env?.KALSHI_OBSERVER_PRIVATE_KEY);
@@ -270,7 +323,8 @@ export class KalshiStreamObserver {
   async runAuthDiagnostic(){
     const gate=credentialGate(this.env);
     const meta=safeCredentialMeta(this.env);
-    if(!gate.ready) return {ok:false,test:"KALSHI_READ_ONLY_AUTH_DIFFERENTIAL",credentialReady:false,credentialMeta:meta,tradingCapability:false};
+    const privateKeyMeta=safePrivateKeyMeta(this.env);
+    if(!gate.ready) return {ok:false,test:"KALSHI_READ_ONLY_AUTH_DIFFERENTIAL",credentialReady:false,credentialMeta:meta,privateKeyMeta,tradingCapability:false};
     try{
       const auth=await this.signedHeaders("GET",REST_AUTH_PROBE_PATH);
       const headerMeta={
@@ -292,6 +346,7 @@ export class KalshiStreamObserver {
         providerMessage:parsed?.message ?? null,
         providerDetails:parsed?.details ?? null,
         credentialMeta:meta,
+        privateKeyMeta,
         headerMeta,
         signing:{
           algorithm:auth.algorithm,
@@ -319,6 +374,7 @@ export class KalshiStreamObserver {
         readOnlyRequest:true,
         diagnosticFailure:String(error?.message||error).slice(0,180),
         credentialMeta:meta,
+        privateKeyMeta,
         credential:{present:true,explicitReadScopeConfigured:true,configuredScope:"read",writeScopesConfigured:false},
         tradingCapability:false,
         orderCapability:false,
