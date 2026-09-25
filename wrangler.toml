@@ -25,3 +25,9 @@ new_sqlite_classes = ["KalshiStreamObserver"]
 
 [triggers]
 crons = ["*/5 * * * *"]
+
+
+[vars]
+# Non-secret fail-closed scope assertion for the separately scoped Kalshi Observer key.
+# The provider credential itself was created with explicit read permission; no write scope is authorized.
+KALSHI_OBSERVER_SCOPES = "read"
