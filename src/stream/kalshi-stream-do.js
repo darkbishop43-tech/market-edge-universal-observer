@@ -1,4 +1,4 @@
-import { createPrivateKey, sign, constants } from "node:crypto";
+import { createPrivateKey, sign } from "node:crypto";
 import { persistStreamEvidence } from "../ledger/d1.js";
 
 const PROVIDER = "KALSHI";
@@ -43,7 +43,7 @@ function signKalshi(privateKeyPem, text){
     const signature = sign("sha256", Buffer.from(text, "utf8"), {
       key: privateKeyPem,
       padding: constants.RSA_PKCS1_PSS_PADDING,
-      saltLength: constants.RSA_PSS_SALTLEN_DIGEST
+      saltLength: 32
     });
     return {algorithm:"RSA-PSS-SHA256", signature:base64(signature)};
   }
