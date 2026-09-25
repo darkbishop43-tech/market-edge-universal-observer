@@ -21,11 +21,19 @@ jobs:
           set -euo pipefail
           base="https://market-edge-universal-observer.darkbishop43.workers.dev"
           curl -fsS "$base/stream-acceptance" > /tmp/acceptance.json
+          curl -fsS "$base/stream-state" > /tmp/stream-state.json
           python - <<'PY'
           import json
           d=json.load(open('/tmp/acceptance.json'))
+          s=json.load(open('/tmp/stream-state.json'))
           c=d.get('connection') or {}
+          print("ACCEPTANCE")
           print(json.dumps(d, indent=2))
+          print("STREAM_STATE")
+          print(json.dumps(s, indent=2))
+          assert s.get('signingSelfCheck',{}).get('keyType') in ('rsa','rsa-pss'), s
+          assert s.get('signingSelfCheck',{}).get('algorithm')=='RSA-PSS-SHA256', s
+          assert s.get('signingSelfCheck',{}).get('localSignatureVerified') is True, s
           assert d['credential']['present'] is True, d
           assert d['credential']['explicitReadScopeConfigured'] is True, d
           assert d['credential']['configuredScope']=='read', d
