@@ -1,4 +1,4 @@
-import { createPrivateKey, sign, constants } from "node:crypto";
+import { createPrivateKey, createPublicKey, sign, verify, constants } from "node:crypto";
 import { persistStreamEvidence } from "../ledger/d1.js";
 
 const PROVIDER = "KALSHI";
@@ -34,18 +34,28 @@ function base64(buf){ return Buffer.from(buf).toString("base64"); }
 function signKalshi(privateKeyPem, text){
   // Parse only to identify the credential type. Cloudflare's node:crypto sign()
   // accepts the PEM key material directly; passing its PrivateKeyObject through
-  // options.key currently fails in Workers even though PEM parsing succeeds.
+  // options.key fails in the Workers runtime even though PEM parsing succeeds.
   const parsedKey = createPrivateKey(privateKeyPem);
+  const publicKey = createPublicKey(parsedKey);
+  const data = Buffer.from(text, "utf8");
   if(parsedKey.asymmetricKeyType === "ed25519"){
-    return {algorithm:"Ed25519", signature:base64(sign(null, Buffer.from(text, "utf8"), privateKeyPem))};
+    const signature = sign(null, data, privateKeyPem);
+    const localVerified = verify(null, data, publicKey, signature);
+    return {algorithm:"Ed25519", keyType:"ed25519", localVerified, signature:base64(signature)};
   }
   if(parsedKey.asymmetricKeyType === "rsa" || parsedKey.asymmetricKeyType === "rsa-pss"){
-    const signature = sign("sha256", Buffer.from(text, "utf8"), {
+    const options = {
       key: privateKeyPem,
       padding: constants.RSA_PKCS1_PSS_PADDING,
       saltLength: 32
-    });
-    return {algorithm:"RSA-PSS-SHA256", signature:base64(signature)};
+    };
+    const signature = sign("sha256", data, options);
+    const localVerified = verify("sha256", data, {
+      key: publicKey,
+      padding: constants.RSA_PKCS1_PSS_PADDING,
+      saltLength: 32
+    }, signature);
+    return {algorithm:"RSA-PSS-SHA256", keyType:parsedKey.asymmetricKeyType, localVerified, signature:base64(signature)};
   }
   throw new Error("UNSUPPORTED_KALSHI_KEY_TYPE");
 }
@@ -177,6 +187,7 @@ export class KalshiStreamObserver {
       lastMarketTicker:this.runtimeState.lastMarketTicker,
       lastPersistenceStatus:this.runtimeState.lastPersistenceStatus,
       evidenceClass:this.runtimeState.evidenceClass || "NONE",
+      signingSelfCheck:{algorithm:this.runtimeState.authAlgorithm||null,keyType:this.runtimeState.authKeyType||null,localSignatureVerified:this.runtimeState.localSignatureVerified??null},
       tradingCapability:false,
       orderCapability:false,
       cancellationCapability:false,
@@ -224,7 +235,9 @@ export class KalshiStreamObserver {
         "KALSHI-ACCESS-TIMESTAMP": timestamp,
         "Upgrade":"websocket"
       },
-      algorithm:signed.algorithm
+      algorithm:signed.algorithm,
+      keyType:signed.keyType,
+      localSignatureVerified:Boolean(signed.localVerified)
     };
   }
 
@@ -251,6 +264,8 @@ export class KalshiStreamObserver {
         connectionId,
         authenticated:true,
         authAlgorithm:auth.algorithm,
+        authKeyType:auth.keyType,
+        localSignatureVerified:auth.localSignatureVerified,
         lastConnectedAt:iso(),
         reconnectAttempt:0,
         nextRetryAt:null
