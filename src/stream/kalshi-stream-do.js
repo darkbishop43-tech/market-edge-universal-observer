@@ -15,6 +15,17 @@ const HEALTH_WAKE_MS = 10 * 60 * 1000;
 function iso(){ return new Date().toISOString(); }
 function safeJson(text){ try { return JSON.parse(text); } catch { return null; } }
 function keyScope(env){ return String(env?.KALSHI_OBSERVER_SCOPES || "").trim(); }
+function safeCredentialMeta(env){
+  const raw=String(env?.KALSHI_OBSERVER_KEY_ID ?? "");
+  const trimmed=raw.trim();
+  return {
+    keyIdLength:trimmed.length,
+    keyIdHasWhitespace:/\s/.test(trimmed),
+    keyIdHasControlChars:/[\u0000-\u001F\u007F]/.test(trimmed),
+    keyIdAsciiVisibleOnly:/^[\x21-\x7E]+$/.test(trimmed),
+    keyIdLooksUuid:/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(trimmed)
+  };
+}
 function credentialGate(env){
   const keyIdPresent = Boolean(env?.KALSHI_OBSERVER_KEY_ID);
   const privateKeyPresent = Boolean(env?.KALSHI_OBSERVER_PRIVATE_KEY);
@@ -193,6 +204,7 @@ export class KalshiStreamObserver {
       lastPersistenceStatus:this.runtimeState.lastPersistenceStatus,
       evidenceClass:this.runtimeState.evidenceClass || "NONE",
       signingSelfCheck:{algorithm:this.runtimeState.authAlgorithm||null,keyType:this.runtimeState.authKeyType||null,localSignatureVerified:this.runtimeState.localSignatureVerified??null},
+      credentialMeta:safeCredentialMeta(this.env),
       tradingCapability:false,
       orderCapability:false,
       cancellationCapability:false,
@@ -257,38 +269,65 @@ export class KalshiStreamObserver {
 
   async runAuthDiagnostic(){
     const gate=credentialGate(this.env);
-    if(!gate.ready) return {ok:false,test:"KALSHI_READ_ONLY_AUTH_DIFFERENTIAL",credentialReady:false,tradingCapability:false};
-    const auth=await this.signedHeaders("GET",REST_AUTH_PROBE_PATH);
-    const response=await fetch(REST_AUTH_PROBE_URL,{method:"GET",headers:auth.headers});
-    const raw=await response.text();
-    const parsed=safeJson(raw);
-    return {
-      ok:response.ok,
-      test:"KALSHI_READ_ONLY_AUTH_DIFFERENTIAL",
-      endpoint:"GET /trade-api/v2/portfolio/balance",
-      readOnlyRequest:true,
-      httpStatus:response.status,
-      providerCode:parsed?.code ?? null,
-      providerMessage:parsed?.message ?? null,
-      providerDetails:parsed?.details ?? null,
-      signing:{
-        algorithm:auth.algorithm,
-        keyType:auth.keyType,
-        localSignatureVerified:auth.localSignatureVerified,
-        timestampUnit:"milliseconds",
-        method:auth.method,
-        signedPath:auth.signPath,
-        queryIncluded:false,
-        signatureEncoding:"base64"
-      },
-      credential:{present:true,explicitReadScopeConfigured:true,configuredScope:"read",writeScopesConfigured:false},
-      tradingCapability:false,
-      orderCapability:false,
-      cancellationCapability:false,
-      transferCapability:false,
-      bankrollCapability:false,
-      baselineBindingPresent:false
-    };
+    const meta=safeCredentialMeta(this.env);
+    if(!gate.ready) return {ok:false,test:"KALSHI_READ_ONLY_AUTH_DIFFERENTIAL",credentialReady:false,credentialMeta:meta,tradingCapability:false};
+    try{
+      const auth=await this.signedHeaders("GET",REST_AUTH_PROBE_PATH);
+      const headerMeta={
+        keyHeaderValid:!/[\u0000-\u001F\u007F]/.test(auth.headers["KALSHI-ACCESS-KEY"]),
+        signatureHeaderValid:/^[A-Za-z0-9+/]+={0,2}$/.test(auth.headers["KALSHI-ACCESS-SIGNATURE"]),
+        signatureLength:auth.headers["KALSHI-ACCESS-SIGNATURE"].length,
+        timestampHeaderValid:/^\d{13}$/.test(auth.headers["KALSHI-ACCESS-TIMESTAMP"])
+      };
+      const response=await fetch(REST_AUTH_PROBE_URL,{method:"GET",headers:auth.headers});
+      const raw=await response.text();
+      const parsed=safeJson(raw);
+      return {
+        ok:response.ok,
+        test:"KALSHI_READ_ONLY_AUTH_DIFFERENTIAL",
+        endpoint:"GET /trade-api/v2/portfolio/balance",
+        readOnlyRequest:true,
+        httpStatus:response.status,
+        providerCode:parsed?.code ?? null,
+        providerMessage:parsed?.message ?? null,
+        providerDetails:parsed?.details ?? null,
+        credentialMeta:meta,
+        headerMeta,
+        signing:{
+          algorithm:auth.algorithm,
+          keyType:auth.keyType,
+          localSignatureVerified:auth.localSignatureVerified,
+          timestampUnit:"milliseconds",
+          method:auth.method,
+          signedPath:auth.signPath,
+          queryIncluded:false,
+          signatureEncoding:"base64"
+        },
+        credential:{present:true,explicitReadScopeConfigured:true,configuredScope:"read",writeScopesConfigured:false},
+        tradingCapability:false,
+        orderCapability:false,
+        cancellationCapability:false,
+        transferCapability:false,
+        bankrollCapability:false,
+        baselineBindingPresent:false
+      };
+    }catch(error){
+      return {
+        ok:false,
+        test:"KALSHI_READ_ONLY_AUTH_DIFFERENTIAL",
+        endpoint:"GET /trade-api/v2/portfolio/balance",
+        readOnlyRequest:true,
+        diagnosticFailure:String(error?.message||error).slice(0,180),
+        credentialMeta:meta,
+        credential:{present:true,explicitReadScopeConfigured:true,configuredScope:"read",writeScopesConfigured:false},
+        tradingCapability:false,
+        orderCapability:false,
+        cancellationCapability:false,
+        transferCapability:false,
+        bankrollCapability:false,
+        baselineBindingPresent:false
+      };
+    }
   }
 
   async connect(){
