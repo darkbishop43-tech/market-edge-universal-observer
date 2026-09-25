@@ -40,3 +40,5 @@ jobs:
           assert 'PrivateKeyObject' not in err, d
           assert 'options.key' not in err, d
           PY
+
+# rerun-after-deploy: cbb290dd
