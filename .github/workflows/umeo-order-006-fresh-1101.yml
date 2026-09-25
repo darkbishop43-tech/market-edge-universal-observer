@@ -1,0 +1,25 @@
+name: UMEO Order 006 Fresh 1101 Diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/umeo-order-006-fresh-1101.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Capture production surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://market-edge-universal-observer.darkbishop43.workers.dev"
+          for path in health stream-state stream-auth-diagnostic stream-acceptance; do
+            echo "===== $path ====="
+            curl -sS -i "$base/$path" || true
+            echo
+          done
