@@ -5,6 +5,8 @@ const PROVIDER = "KALSHI";
 const CHANNEL = "ticker";
 const WS_HTTP_URL = "https://external-api-ws.kalshi.com/trade-api/ws/v2";
 const WS_SIGN_PATH = "/trade-api/ws/v2";
+const REST_AUTH_PROBE_URL = "https://external-api.kalshi.com/trade-api/v2/portfolio/balance";
+const REST_AUTH_PROBE_PATH = "/trade-api/v2/portfolio/balance";
 const SUBSCRIBE_ID = 1;
 const MAX_FAST_RECONNECTS = 6;
 const HOLD_MS = 15 * 60 * 1000;
@@ -143,6 +145,9 @@ export class KalshiStreamObserver {
       await this.ensureConnection();
       return Response.json(await this.publicState());
     }
+    if(url.pathname === "/auth-diagnostic" && request.method === "POST"){
+      return Response.json(await this.runAuthDiagnostic());
+    }
     if(url.pathname === "/fixture" && request.method === "POST"){
       const body = await request.json().catch(()=>({}));
       return Response.json(await this.runFixture(body));
@@ -223,23 +228,66 @@ export class KalshiStreamObserver {
   }
 
   async authHeaders(){
+    const auth=await this.signedHeaders("GET",WS_SIGN_PATH);
+    return {...auth,headers:{...auth.headers,"Upgrade":"websocket"}};
+  }
+
+  async signedHeaders(method, signPath){
     const gate = credentialGate(this.env);
     if(!gate.ready) throw new Error("CREDENTIAL_GATE_CLOSED");
     const timestamp = Date.now().toString();
-    const message = timestamp + "GET" + WS_SIGN_PATH;
+    const message = timestamp + method + signPath.split("?")[0];
     const privateKeyPem = String(this.env.KALSHI_OBSERVER_PRIVATE_KEY).trim();
     const keyId = String(this.env.KALSHI_OBSERVER_KEY_ID).trim();
     const signed = signKalshi(privateKeyPem, message);
     return {
       headers:{
-        "KALSHI-ACCESS-KEY": keyId,
-        "KALSHI-ACCESS-SIGNATURE": signed.signature,
-        "KALSHI-ACCESS-TIMESTAMP": timestamp,
-        "Upgrade":"websocket"
+        "KALSHI-ACCESS-KEY":keyId,
+        "KALSHI-ACCESS-SIGNATURE":signed.signature,
+        "KALSHI-ACCESS-TIMESTAMP":timestamp
       },
       algorithm:signed.algorithm,
       keyType:signed.keyType,
-      localSignatureVerified:Boolean(signed.localVerified)
+      localSignatureVerified:Boolean(signed.localVerified),
+      timestamp,
+      method,
+      signPath:signPath.split("?")[0]
+    };
+  }
+
+  async runAuthDiagnostic(){
+    const gate=credentialGate(this.env);
+    if(!gate.ready) return {ok:false,test:"KALSHI_READ_ONLY_AUTH_DIFFERENTIAL",credentialReady:false,tradingCapability:false};
+    const auth=await this.signedHeaders("GET",REST_AUTH_PROBE_PATH);
+    const response=await fetch(REST_AUTH_PROBE_URL,{method:"GET",headers:auth.headers});
+    const raw=await response.text();
+    const parsed=safeJson(raw);
+    return {
+      ok:response.ok,
+      test:"KALSHI_READ_ONLY_AUTH_DIFFERENTIAL",
+      endpoint:"GET /trade-api/v2/portfolio/balance",
+      readOnlyRequest:true,
+      httpStatus:response.status,
+      providerCode:parsed?.code ?? null,
+      providerMessage:parsed?.message ?? null,
+      providerDetails:parsed?.details ?? null,
+      signing:{
+        algorithm:auth.algorithm,
+        keyType:auth.keyType,
+        localSignatureVerified:auth.localSignatureVerified,
+        timestampUnit:"milliseconds",
+        method:auth.method,
+        signedPath:auth.signPath,
+        queryIncluded:false,
+        signatureEncoding:"base64"
+      },
+      credential:{present:true,explicitReadScopeConfigured:true,configuredScope:"read",writeScopesConfigured:false},
+      tradingCapability:false,
+      orderCapability:false,
+      cancellationCapability:false,
+      transferCapability:false,
+      bankrollCapability:false,
+      baselineBindingPresent:false
     };
   }
 
