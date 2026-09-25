@@ -235,7 +235,11 @@ export class KalshiStreamObserver {
       await this.setState("AUTHENTICATING",{connectionId});
       const auth = await this.authHeaders();
       const response = await fetch(WS_HTTP_URL,{headers:auth.headers});
-      if(!response.webSocket) throw new Error("WEBSOCKET_UPGRADE_FAILED_HTTP_"+response.status);
+      if(!response.webSocket){
+        const providerBody = await response.text().catch(()=>"");
+        const safeBody = String(providerBody||"").replace(/[\r\n]+/g," ").slice(0,180);
+        throw new Error("WEBSOCKET_UPGRADE_FAILED_HTTP_"+response.status+(safeBody?"_"+safeBody:""));
+      }
       const ws = response.webSocket;
       ws.accept();
       this.ws = ws;
