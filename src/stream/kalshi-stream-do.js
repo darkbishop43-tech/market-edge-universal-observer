@@ -227,10 +227,12 @@ export class KalshiStreamObserver {
     if(!gate.ready) throw new Error("CREDENTIAL_GATE_CLOSED");
     const timestamp = Date.now().toString();
     const message = timestamp + "GET" + WS_SIGN_PATH;
-    const signed = signKalshi(this.env.KALSHI_OBSERVER_PRIVATE_KEY, message);
+    const privateKeyPem = String(this.env.KALSHI_OBSERVER_PRIVATE_KEY).trim();
+    const keyId = String(this.env.KALSHI_OBSERVER_KEY_ID).trim();
+    const signed = signKalshi(privateKeyPem, message);
     return {
       headers:{
-        "KALSHI-ACCESS-KEY": this.env.KALSHI_OBSERVER_KEY_ID,
+        "KALSHI-ACCESS-KEY": keyId,
         "KALSHI-ACCESS-SIGNATURE": signed.signature,
         "KALSHI-ACCESS-TIMESTAMP": timestamp,
         "Upgrade":"websocket"
