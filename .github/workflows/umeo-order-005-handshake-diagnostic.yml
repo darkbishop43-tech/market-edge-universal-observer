@@ -1,0 +1,40 @@
+name: UMEO Order 005 Handshake Diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/umeo-order-005-handshake-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read fresh production acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://market-edge-universal-observer.darkbishop43.workers.dev"
+          curl -fsS "$base/stream-acceptance" > /tmp/acceptance.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/acceptance.json'))
+          c=d.get('connection') or {}
+          print(json.dumps(d, indent=2))
+          assert d['credential']['present'] is True, d
+          assert d['credential']['explicitReadScopeConfigured'] is True, d
+          assert d['credential']['configuredScope']=='read', d
+          assert d['credential']['writeScopesConfigured'] is False, d
+          assert d['tradingCapability'] is False, d
+          assert d['orderCapability'] is False, d
+          assert d['cancellationCapability'] is False, d
+          assert d['transferCapability'] is False, d
+          assert d['bankrollCapability'] is False, d
+          assert d['baselineBindingPresent'] is False, d
+          err=str(c.get('lastError') or '')
+          assert 'PrivateKeyObject' not in err, d
+          assert 'options.key' not in err, d
+          PY
