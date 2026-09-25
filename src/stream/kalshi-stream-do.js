@@ -247,6 +247,12 @@ export class KalshiStreamObserver {
     try{
       await this.setState("AUTHENTICATING",{connectionId});
       const auth = await this.authHeaders();
+      await this.setState("AUTHENTICATING",{
+        connectionId,
+        authAlgorithm:auth.algorithm,
+        authKeyType:auth.keyType,
+        localSignatureVerified:auth.localSignatureVerified
+      });
       const response = await fetch(WS_HTTP_URL,{headers:auth.headers});
       if(!response.webSocket){
         const providerBody = await response.text().catch(()=>"");
