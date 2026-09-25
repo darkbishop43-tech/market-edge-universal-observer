@@ -1,0 +1,45 @@
+name: UMEO Order 006 Auth Differential
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/umeo-order-006-auth-differential.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query deployed read-only differential and stream acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://market-edge-universal-observer.darkbishop43.workers.dev"
+          curl -fsS "$base/stream-auth-diagnostic" > /tmp/rest.json
+          curl -fsS "$base/stream-acceptance" > /tmp/ws.json
+          python - <<'PY'
+          import json
+          r=json.load(open('/tmp/rest.json')); w=json.load(open('/tmp/ws.json'))
+          print("READ_ONLY_REST_DIFFERENTIAL"); print(json.dumps(r,indent=2))
+          print("WEBSOCKET_ACCEPTANCE"); print(json.dumps(w,indent=2))
+          assert r['test']=='KALSHI_READ_ONLY_AUTH_DIFFERENTIAL',r
+          assert r['readOnlyRequest'] is True,r
+          assert r['credential']['configuredScope']=='read',r
+          assert r['credential']['writeScopesConfigured'] is False,r
+          assert r['tradingCapability'] is False,r
+          assert r['orderCapability'] is False,r
+          assert r['cancellationCapability'] is False,r
+          assert r['transferCapability'] is False,r
+          assert r['bankrollCapability'] is False,r
+          assert r['baselineBindingPresent'] is False,r
+          assert r['signing']['localSignatureVerified'] is True,r
+          assert w['tradingCapability'] is False,w
+          assert w['orderCapability'] is False,w
+          assert w['cancellationCapability'] is False,w
+          assert w['transferCapability'] is False,w
+          assert w['bankrollCapability'] is False,w
+          assert w['baselineBindingPresent'] is False,w
+          PY
