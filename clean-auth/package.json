@@ -1,0 +1,1 @@
+{"name":"umeo-auth-clean-v1","private":true,"type":"module","scripts":{"test":"node --test"}}
